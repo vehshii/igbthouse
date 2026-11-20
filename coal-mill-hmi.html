@@ -1,0 +1,1484 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>Coal Mill Flow Screen 3D</title>
+    <style>
+      :root{
+        --bg:#070c16; --panel:#0d1626; --panel2:#101b30; --line:#22345a;
+        --txt:#d9e7f7; --dim:#8fa8c8; --accent:#4fc3ff;
+        --green:#2ee06f; --red:#ff5252; --yellow:#ffd83d; --grey:#8b98a8;
+        --digital:#8dffb0;
+      }
+      *{ box-sizing:border-box; }
+      html,body{ margin:0; padding:0; background:var(--bg); color:var(--txt);
+        font-family:"Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+      button{ min-height:2.25rem; }
+      .wrap{ max-width:1720px; margin:0 auto; padding:10px 12px 14px; }
+
+      /* ---------- header ---------- */
+      header{
+        display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+        background:linear-gradient(180deg,#16263f,#0d1830);
+        border:1px solid var(--line); border-radius:10px;
+        padding:10px 16px; box-shadow:0 4px 18px rgba(0,0,0,.55), inset 0 1px 0 rgba(140,190,255,.15);
+      }
+      .h-title{ font-size:clamp(17px,2.2vw,26px); font-weight:800; letter-spacing:.06em; color:#eaf4ff;
+        text-shadow:0 2px 6px rgba(0,0,0,.7); white-space:nowrap; }
+      .h-title .mill{ color:var(--accent); }
+      .h-sub{ font-size:clamp(10px,1.2vw,13px); letter-spacing:.18em; color:var(--dim); font-weight:600; white-space:nowrap; }
+      .h-right{ margin-left:auto; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+      .clock{ font-family:Consolas,"Courier New",monospace; font-size:clamp(13px,1.5vw,17px); color:var(--digital);
+        background:#050b06; border:1px solid #1e4630; border-radius:6px; padding:6px 12px; min-width:196px; text-align:center;
+        box-shadow:inset 0 0 12px rgba(46,224,111,.15); }
+      .btn{ cursor:pointer; border-radius:7px; border:1px solid; font-weight:800; letter-spacing:.08em;
+        font-size:13px; padding:8px 18px; color:#04140a; transition:filter .15s, transform .1s; }
+      .btn:active{ transform:translateY(1px); }
+      .btn:hover{ filter:brightness(1.15); }
+      .btn-start{ background:linear-gradient(180deg,#5df59a,#1fae57); border-color:#0d6e33; box-shadow:0 3px 10px rgba(46,224,111,.35), inset 0 1px 0 rgba(255,255,255,.5); }
+      .btn-stop{ background:linear-gradient(180deg,#ff8a8a,#d92b2b); border-color:#7d1212; color:#fff;
+        box-shadow:0 3px 10px rgba(255,82,82,.3), inset 0 1px 0 rgba(255,255,255,.4); }
+      .hint{ font-size:11.5px; color:var(--dim); letter-spacing:.04em; }
+
+      /* ---------- stage ---------- */
+      .stage{ margin-top:10px; background:
+          radial-gradient(1200px 500px at 50% -10%, #14263f 0%, transparent 60%),
+          linear-gradient(180deg,#0a1322,#070d18);
+        border:1px solid var(--line); border-radius:10px; padding:6px;
+        box-shadow:0 6px 24px rgba(0,0,0,.6), inset 0 0 60px rgba(20,60,120,.12); }
+      svg.screen{ display:block; width:100%; height:auto; }
+      /* Phone: keep the diagram at a readable minimum size and pan across it */
+      @media (max-width:820px){
+        .stage{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+        svg.screen{ min-width:920px; }
+      }
+      svg text{ user-select:none; }
+      .lbl{ fill:#cfe2f7; font-size:13px; font-weight:700; letter-spacing:.05em; }
+      .lbl-sm{ fill:#9db8d8; font-size:11px; font-weight:600; letter-spacing:.04em; }
+      .lbl-xs{ fill:#7e97b8; font-size:10px; font-weight:600; }
+      .tag{ fill:#eaf4ff; font-size:12px; font-weight:800; letter-spacing:.03em; }
+      .mname{ fill:#8fa8c8; font-size:9.5px; font-weight:600; }
+      .val-label{ fill:#9fc2e8; font-size:10.5px; font-weight:700; letter-spacing:.03em; }
+      .val-num{ fill:var(--digital); font-family:Consolas,"Courier New",monospace; font-size:16px; font-weight:700; }
+      .val-unit{ fill:#6f8cb0; font-family:Consolas,monospace; font-size:10.5px; }
+
+      .motor{ cursor:pointer; }
+      .motor:hover .mring{ stroke:#9fd8ff; }
+      .dev{ cursor:pointer; }
+      .dev:hover rect.devbox{ stroke:#9fd8ff; }
+
+      /* ---------- flows ---------- */
+      .flowline{ fill:none; stroke-linecap:round; stroke-dasharray:11 9; opacity:0; transition:opacity .45s;
+        animation:dashmove .65s linear infinite; }
+      .flowline.on{ opacity:.95; }
+      .fl-coal{ stroke:#ff9f2e; stroke-width:5; filter:drop-shadow(0 0 4px rgba(255,159,46,.8)); }
+      .fl-gas{ stroke:#7fd4ff; stroke-width:5; filter:drop-shadow(0 0 4px rgba(127,212,255,.8)); }
+      .fl-prod{ stroke:#eec27f; stroke-width:5; filter:drop-shadow(0 0 4px rgba(238,194,127,.8)); }
+      @keyframes dashmove{ to{ stroke-dashoffset:-20; } }
+
+      .spin{ transform-box:fill-box; transform-origin:center; animation:rot .9s linear infinite; }
+      .spin-slow{ transform-box:fill-box; transform-origin:center; animation:rot 1.6s linear infinite; }
+      @keyframes rot{ to{ transform:rotate(360deg); } }
+
+      .blink{ animation:blink .55s steps(2,start) infinite; }
+      @keyframes blink{ to{ visibility:hidden; } }
+
+      #plume{ opacity:0; transition:opacity .6s; }
+      #plume.on{ opacity:1; }
+      .puff{ fill:#cfe0f2; opacity:0; animation:puff 3.2s ease-out infinite; }
+      .puff.p2{ animation-delay:.8s; } .puff.p3{ animation-delay:1.6s; } .puff.p4{ animation-delay:2.4s; }
+      @keyframes puff{
+        0%{ transform:translateY(6px) scale(.55); opacity:0; }
+        25%{ opacity:.55; }
+        100%{ transform:translateY(-52px) scale(1.5); opacity:0; }
+      }
+
+      /* ---------- footer / trend ---------- */
+      .foot{ display:flex; gap:12px; margin-top:10px; flex-wrap:wrap; }
+      .legend{ display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+        background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 16px; }
+      .legend .item{ display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--txt); }
+      .dot{ width:15px; height:15px; border-radius:50%; border:1px solid rgba(0,0,0,.5);
+        box-shadow:inset 0 2px 3px rgba(255,255,255,.55), inset 0 -3px 5px rgba(0,0,0,.45), 0 1px 4px rgba(0,0,0,.6); }
+      .dot.g{ background:radial-gradient(circle at 35% 30%, #b6ffd0, #27b35c 60%, #0d6e33); }
+      .dot.r{ background:radial-gradient(circle at 35% 30%, #ffc4c4, #e03434 60%, #7d1212); }
+      .dot.y{ background:radial-gradient(circle at 35% 30%, #fff3b0, #e6b800 60%, #7a5c00); }
+      .dot.gr{ background:radial-gradient(circle at 35% 30%, #e2e8f0, #8b98a8 60%, #4b5866); }
+      .trendbox{ flex:1 1 420px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 14px 6px; min-width:300px; }
+      .trend-head{ display:flex; gap:18px; align-items:baseline; flex-wrap:wrap; }
+      .trend-title{ font-size:11px; font-weight:800; letter-spacing:.16em; color:var(--dim); }
+      .trend-key{ font-size:11.5px; font-weight:600; }
+      .trend-key.o{ color:#ffa94d; } .trend-key.c{ color:#57c7ff; }
+      canvas#trend{ display:block; width:100%; height:64px; margin-top:4px; }
+
+      /* ---------- tabs & pages ---------- */
+      .tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+      .tab{ cursor:pointer; flex:1 1 118px; padding:11px 8px; border-radius:9px; border:1px solid var(--line);
+        background:linear-gradient(180deg,#16263f,#0d1830); color:var(--dim); font-weight:800; letter-spacing:.07em;
+        font-size:12.5px; box-shadow:0 3px 10px rgba(0,0,0,.5), inset 0 1px 0 rgba(140,190,255,.12); }
+      .tab .cnt{ color:var(--accent); font-family:Consolas,monospace; font-weight:700; margin-left:4px; }
+      .tab:hover{ color:var(--txt); }
+      .tab.on{ color:#eaf4ff; border-color:var(--accent); background:linear-gradient(180deg,#1e4066,#10233c);
+        box-shadow:0 3px 12px rgba(79,195,255,.25), inset 0 1px 0 rgba(160,210,255,.35); }
+      .page{ display:none; margin-top:10px; }
+      .page.on{ display:block; }
+      #pg-overview{ margin-top:0; }
+      .panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px;
+        box-shadow:0 4px 16px rgba(0,0,0,.5), inset 0 1px 0 rgba(140,190,255,.08); }
+      .panel h2{ font-size:15px; letter-spacing:.12em; margin:0; color:#eaf4ff; }
+      .sec-head{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
+      .sec-note{ font-size:12px; color:var(--dim); font-weight:600; }
+      .rowcount{ font-size:12px; color:var(--accent); font-family:Consolas,monospace; font-weight:700; }
+
+      /* ---------- motors page ---------- */
+      .chips{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+      .chip{ cursor:pointer; border-radius:20px; border:1px solid var(--line); background:#0a1424; color:var(--dim);
+        font-weight:800; font-size:12px; letter-spacing:.06em; padding:7px 16px; }
+      .chip.on{ color:#04140a; background:linear-gradient(180deg,#7fd4ff,#2b9fd8); border-color:#2b6ea8; }
+      .mgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(172px,1fr)); gap:10px; }
+      .mcard{ cursor:pointer; background:linear-gradient(180deg,var(--panel2),#0b1526); border:1px solid var(--line);
+        border-radius:10px; padding:11px 12px; box-shadow:0 3px 8px rgba(0,0,0,.45), inset 0 1px 0 rgba(140,190,255,.1); }
+      .mcard:hover{ border-color:#3d639b; }
+      .mcard.sel{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 3px 10px rgba(0,0,0,.5); }
+      .mc-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      .mc-tag{ font-weight:800; font-size:15px; color:#eaf4ff; letter-spacing:.03em; }
+      .badge{ font-size:10px; padding:2px 9px; border-radius:20px; font-weight:800; letter-spacing:.08em; white-space:nowrap; }
+      .badge.dol{ background:#123f24; color:#5df59a; border:1px solid #1fae57; }
+      .badge.vfd{ background:#3a2c07; color:#ffd83d; border:1px solid #a88400; }
+      .badge.rev{ background:#0d2c4a; color:#7fd4ff; border:1px solid #2b6ea8; }
+      .mc-name{ font-size:12px; color:var(--dim); font-weight:600; margin-top:3px; min-height:15px; }
+      .mc-bot{ display:flex; align-items:center; gap:7px; margin-top:9px; font-size:11.5px; font-weight:700; }
+      .mc-state{ color:var(--txt); letter-spacing:.05em; }
+      .mc-cur{ margin-left:auto; font-family:Consolas,monospace; color:var(--digital); font-size:12.5px; }
+      .pager{ display:flex; align-items:center; justify-content:center; gap:16px; margin-top:14px; }
+      .pg-btn{ background:linear-gradient(180deg,#2a4a75,#16293f); border-color:#33507e; color:#d9e7f7; padding:8px 20px; }
+      .pg-btn:disabled{ opacity:.4; cursor:default; }
+      .pg-info{ font-family:Consolas,monospace; color:var(--dim); font-size:13px; font-weight:700; }
+
+      /* ---------- faceplate ---------- */
+      .fp{ margin-top:10px; }
+      .fp-head{ display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+      .fp-tag{ font-size:22px; font-weight:800; color:#eaf4ff; letter-spacing:.03em; margin-right:8px; }
+      .fp-name{ font-size:13px; color:var(--dim); font-weight:600; margin-top:2px; }
+      .fp-state{ margin-left:auto; display:flex; align-items:center; gap:8px; font-weight:800; letter-spacing:.08em; font-size:14px; }
+      .lamp-row{ display:flex; gap:20px; flex-wrap:wrap; margin:14px 0; }
+      .lampitem{ display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; letter-spacing:.08em; color:var(--dim); }
+      .fp-btns{ display:flex; gap:12px; flex-wrap:wrap; margin:6px 0 4px; }
+      .btn-big{ font-size:16px; padding:14px 34px; border-radius:9px; }
+      .btn-hold{ background:linear-gradient(180deg,#c7d2e0,#77879c); border-color:#4b5866; color:#101c2e;
+        box-shadow:0 3px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.5); }
+      .ro-row{ display:flex; gap:12px; flex-wrap:wrap; margin-top:12px; }
+      .ro-box{ background:#060d18; border:1px solid #22345a; border-radius:8px; padding:8px 14px; min-width:132px; }
+      .ro-box label{ display:block; font-size:10px; font-weight:800; letter-spacing:.14em; color:var(--dim); margin-bottom:3px; }
+      .ro{ font-family:Consolas,monospace; color:var(--digital); font-size:17px; font-weight:700; }
+      .sp-block{ margin-top:14px; background:#0a1424; border:1px solid #22345a; border-radius:8px; padding:12px 14px; }
+      .sp-lab{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap;
+        font-size:11px; font-weight:800; letter-spacing:.12em; color:var(--dim); margin-bottom:8px; }
+      input[type=range]{ width:100%; accent-color:var(--accent); height:28px; cursor:pointer; }
+      .posbar{ height:24px; background:#060d18; border:1px solid #33507e; border-radius:6px; overflow:hidden; margin-top:6px; }
+      .posfill{ height:100%; background:linear-gradient(90deg,#2b6ea8,#4fc3ff); transition:width .25s linear; }
+
+      /* ---------- setpoints & tables ---------- */
+      .sp-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:10px 0; border-top:1px solid #16263f; }
+      .sp-row:first-of-type{ border-top:none; }
+      .sp-meta{ flex:1 1 240px; }
+      .sp-name{ font-weight:700; font-size:13.5px; color:var(--txt); }
+      .sp-ch{ font-size:11px; color:var(--dim); font-family:Consolas,monospace; margin-top:2px; }
+      .sp-row input[type=range]{ flex:2 1 180px; width:auto; }
+      .sp-val{ display:flex; align-items:center; gap:6px; }
+      .numin{ background:#060d18; color:var(--digital); border:1px solid #33507e; border-radius:5px;
+        padding:6px 7px; font-family:Consolas,monospace; font-size:13.5px; width:78px; }
+      .numin.sm{ width:64px; padding:4px 6px; font-size:12.5px; }
+      .sp-unit{ font-size:12px; color:var(--dim); font-weight:700; min-width:30px; }
+      .search{ width:100%; max-width:440px; background:#060d18; border:1px solid #33507e; color:var(--txt);
+        border-radius:7px; padding:9px 12px; font-size:14px; margin-bottom:12px; }
+      .tblwrap{ overflow:auto; max-height:620px; border:1px solid var(--line); border-radius:8px; }
+      table.io{ width:100%; border-collapse:collapse; font-size:12.5px; }
+      table.io th{ position:sticky; top:0; background:#16263f; color:#cfe2f7; text-align:left; padding:8px 10px;
+        letter-spacing:.05em; font-size:11.5px; z-index:1; white-space:nowrap; }
+      table.io td{ padding:6px 10px; border-top:1px solid #16263f; color:var(--txt); vertical-align:top; }
+      table.io tbody tr:nth-child(even) td{ background:rgba(255,255,255,.02); }
+      .mono{ font-family:Consolas,monospace; }
+      .tval{ font-family:Consolas,monospace; color:var(--digital); font-weight:700; font-size:13.5px; white-space:nowrap; }
+      table.io tr.alarm-h td{ background:rgba(230,184,0,.15); }
+      table.io tr.alarm-hh td{ background:rgba(255,45,45,.18); }
+      @media (max-width:640px){
+        .col-opt{ display:none; }
+        .mgrid{ grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); }
+        .btn-big{ padding:13px 22px; font-size:15px; }
+      }
+
+      @media (prefers-reduced-motion: reduce){
+        .flowline, .spin, .spin-slow, .puff, .blink{ animation:none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div>
+          <div class="h-title">FLYING CEMENT MILLS — <span class="mill">COAL MILL</span></div>
+          <div class="h-sub">FLOW SCREEN &nbsp;•&nbsp; CHITIC PCS1800 DCS &nbsp;•&nbsp; ChiticView</div>
+        </div>
+        <div class="h-right">
+          <span class="hint">Click any motor to Start / Stop</span>
+          <button class="btn btn-start" id="btnAll" type="button">START ALL</button>
+          <button class="btn btn-stop" id="btnStop" type="button">STOP ALL</button>
+          <div class="clock" id="clock">-- --- ---- &nbsp;--:--:--</div>
+        </div>
+      </header>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab on" data-page="pg-overview" type="button">OVERVIEW</button>
+        <button class="tab" data-page="pg-motors" type="button">MOTORS<span class="cnt">61</span></button>
+        <button class="tab" data-page="pg-temp" type="button">TEMP &amp; SETPOINTS<span class="cnt">84</span></button>
+        <button class="tab" data-page="pg-ai" type="button">AI<span class="cnt">130</span></button>
+        <button class="tab" data-page="pg-ao" type="button">AO<span class="cnt">27</span></button>
+        <button class="tab" data-page="pg-di" type="button">DI<span class="cnt">325</span></button>
+        <button class="tab" data-page="pg-do" type="button">DO<span class="cnt">106</span></button>
+      </nav>
+
+      <div class="page on" id="pg-overview">
+      <div class="stage">
+      <svg class="screen" viewBox="0 0 1600 950" role="img" aria-label="Coal mill flow screen">
+        <defs>
+          <linearGradient id="gVessel" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#8ba3c2"/><stop offset=".28" stop-color="#546b8a"/>
+            <stop offset=".55" stop-color="#2e4258"/><stop offset="1" stop-color="#182636"/>
+          </linearGradient>
+          <linearGradient id="gSteel" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#aebfd6"/><stop offset=".45" stop-color="#5f738c"/>
+            <stop offset="1" stop-color="#2b3a4f"/>
+          </linearGradient>
+          <linearGradient id="gMill" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#243650"/><stop offset=".18" stop-color="#7d93b2"/>
+            <stop offset=".5" stop-color="#3c5878"/><stop offset=".82" stop-color="#22344c"/>
+            <stop offset="1" stop-color="#141f30"/>
+          </linearGradient>
+          <linearGradient id="gBin" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#1d2c42"/><stop offset=".22" stop-color="#6d84a2"/>
+            <stop offset=".55" stop-color="#334862"/><stop offset="1" stop-color="#131e2e"/>
+          </linearGradient>
+          <radialGradient id="gRun" cx=".38" cy=".32" r=".85">
+            <stop offset="0" stop-color="#c9ffdd"/><stop offset=".45" stop-color="#3ed97a"/>
+            <stop offset="1" stop-color="#0d6e33"/>
+          </radialGradient>
+          <radialGradient id="gStop" cx=".38" cy=".32" r=".85">
+            <stop offset="0" stop-color="#ffd9d9"/><stop offset=".45" stop-color="#f0564f"/>
+            <stop offset="1" stop-color="#7d1212"/>
+          </radialGradient>
+          <radialGradient id="gFault" cx=".38" cy=".32" r=".85">
+            <stop offset="0" stop-color="#fff6bf"/><stop offset=".45" stop-color="#f2c41c"/>
+            <stop offset="1" stop-color="#7a5c00"/>
+          </radialGradient>
+          <radialGradient id="gGrey" cx=".38" cy=".32" r=".85">
+            <stop offset="0" stop-color="#eef2f7"/><stop offset=".45" stop-color="#9aa7b8"/>
+            <stop offset="1" stop-color="#4b5866"/>
+          </radialGradient>
+          <radialGradient id="gFan" cx=".4" cy=".35" r=".9">
+            <stop offset="0" stop-color="#c3d4e8"/><stop offset=".55" stop-color="#5f738c"/>
+            <stop offset="1" stop-color="#22344c"/>
+          </radialGradient>
+          <linearGradient id="gCoal" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#7d6242"/><stop offset="1" stop-color="#4a3823"/>
+          </linearGradient>
+        </defs>
+
+        <!-- ================= RAW COAL SILO ================= -->
+        <text class="lbl" x="115" y="72" text-anchor="middle">RAW COAL SILO</text>
+        <rect x="52" y="86" width="126" height="17" rx="6" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <rect x="60" y="103" width="110" height="148" fill="url(#gVessel)" stroke="#0b1524" stroke-width="1.5"/>
+        <rect x="68" y="150" width="94" height="98" fill="url(#gCoal)" opacity=".92"/>
+        <rect x="70" y="106" width="13" height="142" fill="#ffffff" opacity=".14"/>
+        <polygon points="60,251 170,251 128,332 102,332" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <rect x="105" y="332" width="20" height="26" fill="#33465e" stroke="#0b1524"/>
+        <line x1="66" y1="251" x2="52" y2="392" stroke="#46586e" stroke-width="4"/>
+        <line x1="164" y1="251" x2="178" y2="392" stroke="#46586e" stroke-width="4"/>
+        <text class="lbl-xs" x="115" y="205" text-anchor="middle" fill="#e8d9bd">RAW COAL</text>
+
+        <!-- ================= BELT CONVEYORS ================= -->
+        <text class="lbl" x="370" y="72" text-anchor="middle">BELT CONVEYORS M55 • M56 • M57</text>
+        <rect x="92" y="390" width="566" height="13" rx="3" fill="#26344a" stroke="#0b1524" stroke-width="1.5"/>
+        <line x1="100" y1="396.5" x2="650" y2="396.5" stroke="#101b2c" stroke-width="2"/>
+        <!-- silo drop + belt flow -->
+        <path d="M115,358 L115,388" stroke="#3a4c68" stroke-width="13" fill="none"/>
+        <path class="flowline fl-coal" data-cond="M55" d="M115,358 L115,388"/>
+        <path class="flowline fl-coal" data-cond="M55&M56&M57" d="M118,396 L644,396"/>
+        <!-- stems for detector / separator / gate -->
+        <line x1="300" y1="353" x2="300" y2="390" stroke="#46586e" stroke-width="4"/>
+        <line x1="455" y1="353" x2="455" y2="390" stroke="#46586e" stroke-width="4"/>
+        <line x1="620" y1="353" x2="620" y2="390" stroke="#46586e" stroke-width="4"/>
+        <!-- drop chute belt -> feeder -->
+        <polygon points="628,403 664,403 657,450 621,450" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <path class="flowline fl-coal" data-cond="M55&M56&M57&M62" d="M646,406 L640,446"/>
+
+        <!-- ================= WEIGHING FEEDER M3 ================= -->
+        <rect x="540" y="450" width="182" height="42" rx="7" fill="url(#gMill)" stroke="#0b1524" stroke-width="1.5"/>
+        <line x1="548" y1="471" x2="714" y2="471" stroke="#0e1a2b" stroke-width="5"/>
+        <text class="lbl-sm" x="631" y="443" text-anchor="middle">WEIGHING FEEDER</text>
+        <!-- feeder discharge pipe to mill -->
+        <path d="M722,469 L752,469 L778,442" stroke="#3a4c68" stroke-width="15" fill="none"/>
+        <path class="flowline fl-coal" data-cond="M3" d="M724,469 L752,469 L776,444"/>
+
+        <!-- ================= COAL MILL ================= -->
+        <text class="lbl" x="850" y="72" text-anchor="middle">COAL MILL</text>
+        <!-- classifier cap + rotating indicator -->
+        <rect x="816" y="146" width="68" height="28" rx="5" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <g id="classSpin">
+          <line x1="850" y1="152" x2="850" y2="168" stroke="#ffd83d" stroke-width="3.5"/>
+          <line x1="843" y1="164" x2="857" y2="164" stroke="#ffd83d" stroke-width="3.5"/>
+          <circle cx="850" cy="160" r="3.5" fill="#ffd83d"/>
+        </g>
+        <!-- classifier cone -->
+        <polygon points="780,248 920,248 884,174 816,174" fill="url(#gVessel)" stroke="#0b1524" stroke-width="1.5"/>
+        <polygon points="816,174 884,174 872,205 828,205" fill="#ffffff" opacity=".08"/>
+        <!-- mill body -->
+        <rect x="770" y="248" width="160" height="298" fill="url(#gMill)" stroke="#0b1524" stroke-width="1.5"/>
+        <line x1="770" y1="306" x2="930" y2="306" stroke="#101c2e" stroke-width="3"/>
+        <line x1="770" y1="392" x2="930" y2="392" stroke="#101c2e" stroke-width="3"/>
+        <line x1="770" y1="472" x2="930" y2="472" stroke="#101c2e" stroke-width="3"/>
+        <text class="lbl" x="850" y="530" text-anchor="middle" fill="#dcecfb">COAL MILL</text>
+        <!-- bottom cone + outlet -->
+        <polygon points="770,546 930,546 874,608 826,608" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <rect x="838" y="608" width="24" height="20" fill="#33465e" stroke="#0b1524"/>
+        <!-- main motor shaft -->
+        <line x1="930" y1="402" x2="986" y2="402" stroke="#54677f" stroke-width="13"/>
+        <line x1="930" y1="402" x2="986" y2="402" stroke="#2b3a4f" stroke-width="5"/>
+        <text class="lbl-sm" x="1022" y="352" text-anchor="middle">MILL MAIN MOTOR</text>
+
+        <!-- ================= HOT AIR ================= -->
+        <text class="lbl" x="34" y="708">HOT AIR FROM KILN / PREHEATER</text>
+        <path d="M30,726 L688,726 L798,606" stroke="#3a4c68" stroke-width="17" fill="none"/>
+        <path class="flowline fl-gas" data-cond="always" d="M34,726 L688,726 L796,608"/>
+        <!-- damper symbol -->
+        <g>
+          <polygon points="228,711 272,741 272,711 228,741" fill="#93a9c4" stroke="#0b1524" stroke-width="1.5"/>
+          <line x1="250" y1="726" x2="266" y2="700" stroke="#93a9c4" stroke-width="4"/>
+          <circle cx="268" cy="698" r="5" fill="#93a9c4" stroke="#0b1524"/>
+          <text class="lbl-xs" x="250" y="762" text-anchor="middle">HOT AIR DAMPER</text>
+        </g>
+        <!-- seal air pipe -->
+        <path d="M452,652 L700,652 L792,588" stroke="#3a4c68" stroke-width="12" fill="none"/>
+        <path class="flowline fl-gas" data-cond="SEAL" d="M454,652 L700,652 L790,590"/>
+
+        <!-- ================= MILL AUXILIARIES ================= -->
+        <rect x="25" y="772" width="640" height="150" rx="10" fill="#0c1524" stroke="#2a3c5c" stroke-width="1.5"/>
+        <text class="lbl" x="42" y="800">MILL AUXILIARIES</text>
+
+        <!-- ================= REJECT ================= -->
+        <path d="M850,628 L850,660" stroke="#3a4c68" stroke-width="13"/>
+        <path class="flowline fl-coal" data-cond="MAIN" d="M850,630 L850,658"/>
+        <rect x="762" y="660" width="176" height="68" rx="8" fill="url(#gMill)" stroke="#0b1524" stroke-width="1.5"/>
+        <text class="lbl-sm" x="850" y="688" text-anchor="middle">REJECT CHAMBER</text>
+        <text class="lbl-xs" x="850" y="708" text-anchor="middle">PYRITE / TRAMP IRON</text>
+        <line x1="938" y1="712" x2="1088" y2="712" stroke="#54677f" stroke-width="5"/>
+        <polygon points="1088,712 1074,705 1074,719" fill="#54677f"/>
+        <text class="lbl-sm" x="938" y="746">TO REJECT BIN</text>
+
+        <!-- ================= GAS DUCT TO BAG FILTER ================= -->
+        <path d="M906,206 L964,206 L964,104 L1216,104 L1216,194" stroke="#3a4c68" stroke-width="19" fill="none"/>
+        <path class="flowline fl-gas" data-cond="M59" d="M908,206 L964,206 L964,104 L1216,104 L1216,192"/>
+
+        <!-- ================= MAIN BAG FILTER M16 ================= -->
+        <text class="lbl" x="1220" y="72" text-anchor="middle">MAIN BAG FILTER M16</text>
+        <rect x="1080" y="194" width="280" height="242" fill="url(#gVessel)" stroke="#0b1524" stroke-width="1.5"/>
+        <rect x="1092" y="200" width="12" height="230" fill="#ffffff" opacity=".12"/>
+        <line x1="1080" y1="392" x2="1360" y2="392" stroke="#101c2e" stroke-width="3"/>
+        <text class="lbl-sm" x="1220" y="416" text-anchor="middle">Rotary Valves RV-1…10</text>
+        <text class="lbl-sm" x="1220" y="434" text-anchor="middle">Gate Valves GV-1…7</text>
+        <!-- hoppers -->
+        <polygon points="1086,436 1173,436 1147,542 1113,542" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <polygon points="1177,436 1264,436 1238,542 1204,542" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <polygon points="1268,436 1355,436 1329,542 1295,542" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <!-- DP alarm lamp -->
+        <circle id="dpLamp" cx="1312" cy="222" r="13" fill="#5a2020" stroke="#0b1524" stroke-width="2"/>
+        <text class="lbl-xs" id="dpLampTxt" x="1294" y="227" text-anchor="end" style="fill:#eaf4ff;font-size:11px;font-weight:800">DP ALARM</text>
+        <!-- hopper discharge to screw -->
+        <path d="M1130,542 L1130,610 M1221,542 L1221,610 M1312,542 L1312,610" stroke="#3a4c68" stroke-width="11"/>
+        <path class="flowline fl-prod" data-cond="M59&SCREW" d="M1130,544 L1130,608 M1221,544 L1221,608 M1312,544 L1312,608"/>
+
+        <!-- ================= BAG FILTER FAN M59 + STACK ================= -->
+        <path d="M1360,262 L1414,292" stroke="#3a4c68" stroke-width="17" fill="none"/>
+        <path class="flowline fl-gas" data-cond="M59" d="M1362,264 L1412,290"/>
+        <path d="M1470,238 L1470,98" stroke="#3a4c68" stroke-width="21" fill="none"/>
+        <path class="flowline fl-gas" data-cond="M59" d="M1470,236 L1470,102"/>
+        <rect x="1452" y="82" width="36" height="18" fill="url(#gSteel)" stroke="#0b1524"/>
+        <text class="lbl" x="1500" y="118">TO STACK</text>
+        <g id="plume">
+          <ellipse class="puff p1" cx="1470" cy="58" rx="17" ry="11"/>
+          <ellipse class="puff p2" cx="1458" cy="52" rx="21" ry="13"/>
+          <ellipse class="puff p3" cx="1484" cy="50" rx="19" ry="12"/>
+          <ellipse class="puff p4" cx="1470" cy="46" rx="24" ry="14"/>
+        </g>
+        <!-- fan housing -->
+        <circle cx="1470" cy="300" r="63" fill="url(#gFan)" stroke="#0b1524" stroke-width="2"/>
+        <circle cx="1470" cy="300" r="47" fill="#14223a" stroke="#0b1524" stroke-width="1.5"/>
+        <g id="fanBlades">
+          <path d="M1470,300 L1470,259 Q1488,268 1484,295 Z" fill="#a9cdec"/>
+          <path d="M1470,300 L1470,259 Q1488,268 1484,295 Z" fill="#a9cdec" transform="rotate(60 1470 300)"/>
+          <path d="M1470,300 L1470,259 Q1488,268 1484,295 Z" fill="#a9cdec" transform="rotate(120 1470 300)"/>
+          <path d="M1470,300 L1470,259 Q1488,268 1484,295 Z" fill="#a9cdec" transform="rotate(180 1470 300)"/>
+          <path d="M1470,300 L1470,259 Q1488,268 1484,295 Z" fill="#a9cdec" transform="rotate(240 1470 300)"/>
+          <path d="M1470,300 L1470,259 Q1488,268 1484,295 Z" fill="#a9cdec" transform="rotate(300 1470 300)"/>
+        </g>
+        <text class="lbl-sm" x="1470" y="392" text-anchor="middle">BAG FILTER FAN</text>
+
+        <!-- ================= SCREW CONVEYOR ================= -->
+        <rect x="1066" y="610" width="404" height="16" rx="4" fill="#26344a" stroke="#0b1524" stroke-width="1.5"/>
+        <path class="flowline fl-prod" data-cond="SCREW" d="M1078,618 L1458,618"/>
+        <text class="lbl-sm" x="1268" y="600" text-anchor="middle">SCREW CONVEYOR</text>
+        <path d="M1220,626 L1220,662 M1405,626 L1405,662" stroke="#3a4c68" stroke-width="11"/>
+        <path class="flowline fl-prod" data-cond="SCREW" d="M1220,628 L1220,660 M1405,628 L1405,660"/>
+
+        <!-- ================= KILN COAL BIN ================= -->
+        <text class="lbl" x="1220" y="652" text-anchor="middle">KILN COAL BIN</text>
+        <rect x="1145" y="664" width="150" height="96" fill="url(#gBin)" stroke="#0b1524" stroke-width="1.5"/>
+        <rect id="lvlKFill" x="1153" y="694" width="134" height="58" fill="url(#gCoal)" opacity=".95"/>
+        <text class="val-num" id="lvlKText" x="1220" y="726" text-anchor="middle" style="font-size:19px">62%</text>
+        <polygon points="1145,760 1295,760 1251,812 1189,812" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <rect x="1212" y="812" width="16" height="14" fill="#33465e" stroke="#0b1524"/>
+        <path class="flowline fl-prod" data-cond="PFK" d="M1220,828 L1220,842"/>
+        <text class="lbl-sm" x="1220" y="884" text-anchor="middle">PFISTER FEEDER</text>
+
+        <!-- ================= PC COAL BIN ================= -->
+        <text class="lbl" x="1405" y="652" text-anchor="middle">PC COAL BIN</text>
+        <rect x="1330" y="664" width="150" height="96" fill="url(#gBin)" stroke="#0b1524" stroke-width="1.5"/>
+        <rect id="lvlPFill" x="1338" y="714" width="134" height="38" fill="url(#gCoal)" opacity=".95"/>
+        <text class="val-num" id="lvlPText" x="1405" y="726" text-anchor="middle" style="font-size:19px">47%</text>
+        <polygon points="1330,760 1480,760 1436,812 1374,812" fill="url(#gSteel)" stroke="#0b1524" stroke-width="1.5"/>
+        <rect x="1397" y="812" width="16" height="14" fill="#33465e" stroke="#0b1524"/>
+        <path class="flowline fl-prod" data-cond="PFP" d="M1405,828 L1405,842"/>
+        <text class="lbl-sm" x="1405" y="884" text-anchor="middle">PFISTER FEEDER</text>
+
+        <!-- generated layers: motors/devices and value boxes -->
+        <g id="valuesLayer"></g>
+        <g id="motorsLayer"></g>
+      </svg>
+      </div>
+
+      <div class="foot">
+        <div class="legend">
+          <span class="item"><span class="dot g"></span>Running</span>
+          <span class="item"><span class="dot r"></span>Stopped</span>
+          <span class="item"><span class="dot y"></span>Fault</span>
+          <span class="item"><span class="dot gr"></span>Not Ready</span>
+        </div>
+        <div class="trendbox">
+          <div class="trend-head">
+            <span class="trend-title">LIVE TREND</span>
+            <span class="trend-key o">— Mill Outlet Temp °C</span>
+            <span class="trend-key c">— Feeder Flow Rate t/h</span>
+          </div>
+          <canvas id="trend" width="900" height="64"></canvas>
+        </div>
+      </div>
+      </div><!-- /pg-overview -->
+
+      <!-- ================= MOTORS PAGE ================= -->
+      <div class="page" id="pg-motors">
+        <div class="panel">
+          <div class="sec-head">
+            <h2>MOTORS &amp; DRIVES</h2>
+            <span class="sec-note" id="motorCount"></span>
+            <span class="sec-note">Click a card to open its control faceplate below</span>
+          </div>
+          <div class="chips" id="motorChips">
+            <button class="chip on" data-f="ALL" type="button">All</button>
+            <button class="chip" data-f="DOL" type="button">DOL</button>
+            <button class="chip" data-f="VFD" type="button">VFD</button>
+            <button class="chip" data-f="REV" type="button">REV / Valves</button>
+          </div>
+          <div class="mgrid" id="motorGrid"></div>
+          <div class="pager">
+            <button class="btn pg-btn" id="pgPrev" type="button">Prev</button>
+            <span class="pg-info" id="pgInfo"></span>
+            <button class="btn pg-btn" id="pgNext" type="button">Next</button>
+          </div>
+        </div>
+        <div class="panel fp" id="faceplate"></div>
+      </div>
+
+      <!-- ================= TEMP & SETPOINTS PAGE ================= -->
+      <div class="page" id="pg-temp">
+        <div class="panel">
+          <div class="sec-head">
+            <h2>AO SETPOINTS</h2>
+            <span class="sec-note">Panel 1 · Sheet 13 · drag the slider or type a value</span>
+          </div>
+          <div id="spList"></div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <div class="sec-head">
+            <h2>TEMPERATURES — AI POINTS</h2>
+            <span class="rowcount" id="tempCount"></span>
+            <span class="sec-note">H / HH alarm setpoints are editable — row turns amber over H, red over HH</span>
+          </div>
+          <div class="tblwrap">
+            <table class="io" id="tempTable">
+              <thead><tr>
+                <th>Loop Tag</th><th>Description</th><th class="col-opt">Panel / Sheet / CH</th>
+                <th>Value °C</th><th>H °C</th><th>HH °C</th>
+              </tr></thead>
+              <tbody id="tempBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= IO PAGES ================= -->
+      <div class="page" id="pg-ai">
+        <div class="panel">
+          <div class="sec-head"><h2>ANALOG INPUTS — AI</h2><span class="rowcount" id="rc-ai"></span></div>
+          <input class="search" id="q-ai" type="search" placeholder="Search tag or description…" />
+          <div class="tblwrap"><table class="io">
+            <thead><tr><th>Panel</th><th>Sheet</th><th class="col-opt">Module</th><th class="col-opt">TM</th><th>CH</th><th>Tag</th><th>Description</th></tr></thead>
+            <tbody id="tb-ai"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div class="page" id="pg-ao">
+        <div class="panel">
+          <div class="sec-head"><h2>ANALOG OUTPUTS — AO</h2><span class="rowcount" id="rc-ao"></span></div>
+          <input class="search" id="q-ao" type="search" placeholder="Search tag or description…" />
+          <div class="tblwrap"><table class="io">
+            <thead><tr><th>Panel</th><th>Sheet</th><th class="col-opt">Module</th><th class="col-opt">TM</th><th>CH</th><th>Tag</th><th>Description</th></tr></thead>
+            <tbody id="tb-ao"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div class="page" id="pg-di">
+        <div class="panel">
+          <div class="sec-head"><h2>DIGITAL INPUTS — DI</h2><span class="rowcount" id="rc-di"></span></div>
+          <input class="search" id="q-di" type="search" placeholder="Search tag or description…" />
+          <div class="tblwrap"><table class="io">
+            <thead><tr><th>Panel</th><th>Sheet</th><th class="col-opt">Module</th><th class="col-opt">TM</th><th>CH</th><th>Tag</th><th>Description</th></tr></thead>
+            <tbody id="tb-di"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div class="page" id="pg-do">
+        <div class="panel">
+          <div class="sec-head"><h2>DIGITAL OUTPUTS — DO</h2><span class="rowcount" id="rc-do"></span></div>
+          <input class="search" id="q-do" type="search" placeholder="Search tag or description…" />
+          <div class="tblwrap"><table class="io">
+            <thead><tr><th>Panel</th><th>Sheet</th><th class="col-opt">Module</th><th class="col-opt">TM</th><th>CH</th><th>Tag</th><th>Description</th></tr></thead>
+            <tbody id="tb-do"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+    </div>
+
+    <script>
+    (function(){
+      "use strict";
+      var NS = "http://www.w3.org/2000/svg";
+      function el(name, attrs, parent){
+        var e = document.createElementNS(NS, name);
+        for (var k in attrs) e.setAttribute(k, attrs[k]);
+        if (parent) parent.appendChild(e);
+        return e;
+      }
+      function txt(parent, x, y, str, cls, anchor){
+        var t = el("text", {x:x, y:y, "class":cls, "text-anchor":anchor||"middle"}, parent);
+        t.textContent = str;
+        return t;
+      }
+
+      /* ---------------- state ---------------- */
+      var S = {}; // motor id -> running bool
+
+      /* ---------------- motors ---------------- */
+      var MOTORS = [
+        {id:"M55", x:130,  y:440, r:16, tag:"M55", name:"Belt Conv. 1"},
+        {id:"M56", x:340,  y:440, r:16, tag:"M56", name:"Belt Conv. 2"},
+        {id:"M57", x:520,  y:440, r:16, tag:"M57", name:"Belt Conv. 3"},
+        {id:"M3",  x:744,  y:471, r:21, tag:"M3",  name:"Weighing Feeder"},
+        {id:"M14", x:850,  y:112, r:25, tag:"M14", name:"Classifier Motor (VFD)", side:"left"},
+        {id:"MAIN",x:1022, y:402, r:33, tag:"MAIN", name:"Mill Main Motor"},
+        {id:"SEAL",x:430,  y:652, r:20, tag:"SEAL", name:"Seal Air Fan"},
+        {id:"M11", x:88,   y:850, r:17, tag:"M11", name:"Hydraulic Pump"},
+        {id:"M12", x:192,  y:850, r:17, tag:"M12", name:"Hydraulic Heater"},
+        {id:"M8",  x:296,  y:850, r:17, tag:"M8",  name:"Lube Oil Pump"},
+        {id:"M13", x:400,  y:850, r:17, tag:"M13", name:"Mill Cooling Fan"},
+        {id:"SCREW",x:1492,y:618, r:15, tag:"SCR", name:""},
+        {id:"PFK", x:1220, y:852, r:16, tag:"", name:""},
+        {id:"PFP", x:1405, y:852, r:16, tag:"", name:""}
+      ];
+      /* M59 fan hub is drawn statically; register it as a motor with a custom element */
+      var DEVICES = [
+        {id:"M60", x:300, y:330, tag:"M60", name:"Metal Detector"},
+        {id:"M61", x:455, y:330, tag:"M61", name:"Magnet Separator"},
+        {id:"M62", x:620, y:330, tag:"M62", name:"Pneumatic Three-Way Gate"}
+      ];
+
+      var motorsLayer = document.getElementById("motorsLayer");
+      var motorFace = {}; // id -> face circle whose fill shows state
+
+      MOTORS.forEach(function(m){
+        S[m.id] = true;
+        var g = el("g", {"class":"motor", "data-mid":m.id}, motorsLayer);
+        el("circle", {cx:m.x, cy:m.y, r:m.r+4.5, "class":"mring", fill:"#0a1322", stroke:"#54677f", "stroke-width":1.5}, g);
+        var face = el("circle", {cx:m.x, cy:m.y, r:m.r, fill:"url(#gRun)", stroke:"#0b1524", "stroke-width":1.5}, g);
+        el("ellipse", {cx:m.x-m.r*0.34, cy:m.y-m.r*0.42, rx:m.r*0.42, ry:m.r*0.24, fill:"#ffffff", opacity:.38}, g);
+        var mt = txt(g, m.x, m.y+1, "M", "", "middle");
+        mt.setAttribute("fill", "#ffffff");
+        mt.setAttribute("font-size", Math.round(m.r*1.05));
+        mt.setAttribute("font-weight", "800");
+        mt.setAttribute("dominant-baseline", "middle");
+        mt.setAttribute("style", "text-shadow:0 1px 2px rgba(0,0,0,.6)");
+        if (m.side === "left") {
+          var tg = txt(g, m.x - m.r - 13, m.y - 1, m.tag, "tag", "end");
+          if (m.name) txt(g, m.x - m.r - 13, m.y + 14, m.name, "mname", "end");
+        } else {
+          txt(g, m.x, m.y + m.r + 16, m.tag, "tag");
+          if (m.name) txt(g, m.x, m.y + m.r + 29, m.name, "mname");
+        }
+        var title = el("title", {}, g); title.textContent = m.tag + " — click to Start/Stop";
+        motorFace[m.id] = face;
+        g.addEventListener("click", function(){ toggleMotor(m.id); });
+      });
+
+      /* M59: clickable hub over the fan */
+      (function(){
+        S["M59"] = true;
+        var svg = document.querySelector("svg.screen");
+        var g = el("g", {"class":"motor", "data-mid":"M59"}, svg);
+        var face = el("circle", {cx:1470, cy:300, r:17, fill:"url(#gRun)", stroke:"#0b1524", "stroke-width":1.5}, g);
+        el("ellipse", {cx:1464, cy:293, rx:7, ry:4, fill:"#ffffff", opacity:.4}, g);
+        var mt = txt(g, 1470, 301, "M", "", "middle");
+        mt.setAttribute("fill", "#ffffff"); mt.setAttribute("font-size", "17"); mt.setAttribute("font-weight", "800");
+        mt.setAttribute("dominant-baseline", "middle");
+        txt(g, 1470, 336, "M59", "tag");
+        var title = el("title", {}, g); title.textContent = "M59 Bag Filter Fan — click to Start/Stop";
+        motorFace["M59"] = face;
+        g.addEventListener("click", function(){ toggleMotor("M59"); });
+      })();
+
+      DEVICES.forEach(function(d){
+        S[d.id] = true;
+        var g = el("g", {"class":"dev", "data-mid":d.id}, motorsLayer);
+        var box = el("rect", {x:d.x-62, y:d.y-23, width:124, height:46, rx:7, "class":"devbox",
+          fill:"#1b2a44", stroke:"#2ee06f", "stroke-width":2.5}, g);
+        box.setAttribute("style","filter:drop-shadow(0 4px 6px rgba(0,0,0,.55))");
+        var lamp = el("circle", {cx:d.x+48, cy:d.y-11, r:5.5, fill:"#2ee06f", stroke:"#0b1524"}, g);
+        txt(g, d.x-6, d.y-3, d.tag, "tag");
+        var nm = txt(g, d.x-6, d.y+13, d.name, "mname");
+        nm.setAttribute("font-size", "9");
+        var title = el("title", {}, g); title.textContent = d.tag + " — click to Start/Stop";
+        motorFace[d.id] = { setFill:function(run){ box.setAttribute("stroke", run ? "#2ee06f" : "#ff5252"); lamp.setAttribute("fill", run ? "#2ee06f" : "#ff5252"); } };
+        g.addEventListener("click", function(){ toggleMotor(d.id); });
+      });
+
+      function refreshMotorVisual(id){
+        var f = motorFace[id]; if (!f) return;
+        if (f.setFill) f.setFill(S[id]);
+        else f.setAttribute("fill", S[id] ? "url(#gRun)" : "url(#gStop)");
+      }
+
+      /* ---------------- value boxes ---------------- */
+      var valuesLayer = document.getElementById("valuesLayer");
+      function valueBox(x, y, w, label){
+        var g = el("g", {}, valuesLayer);
+        var r = el("rect", {x:x, y:y, width:w, height:42, rx:5, fill:"#060d18", stroke:"#33507e", "stroke-width":1.2}, g);
+        r.setAttribute("style","filter:drop-shadow(0 3px 5px rgba(0,0,0,.5))");
+        txt(g, x+8, y+15, label, "val-label", "start");
+        var v = txt(g, x+8, y+36, "--", "val-num", "start");
+        return v;
+      }
+      function unitAfter(vEl, x, y, unit){
+        var u = txt(valuesLayer, x, y, unit, "val-unit", "start");
+        return u;
+      }
+
+      /* Analog points: src = motors that must run for a live value */
+      var VALS = [];
+      function addVal(id, x, y, w, label, unit, base, noise, dec, src, off, rate){
+        var vEl = valueBox(x, y, w, label);
+        unitAfter(vEl, x + w - unit.length*6.6 - 6, y + 36, unit);
+        VALS.push({id:id, el:vEl, base:base, noise:noise, dec:dec, src:src, off:off, rate:rate, v:base});
+        return vEl;
+      }
+
+      addVal("feedFlow", 540, 522, 152, "Feeder Flow Rate", "t/h", 18.5, .5, 1, ["M3","M55"], 0, .30);
+      addVal("beltCurr", 540, 574, 152, "Belt Current", "A", 24, 1.2, 1, ["M3"], 0, .35);
+      addVal("mmCurr",   946, 466, 152, "Main Motor Current", "A", 168, 4, 0, ["MAIN"], 0, .30);
+      addVal("mmBear",   946, 518, 152, "Main Bearing Temp", "°C", 68, 1, 1, ["MAIN"], 34, .05);
+      addVal("millInT",  606, 150, 156, "Mill Inlet Temp", "°C", 245, 3, 0, ["M59"], 40, .06);
+      addVal("millOutT", 606, 202, 156, "Mill Outlet Temp", "°C", 78, 1.2, 1, ["M59","MAIN"], 35, .06);
+      addVal("millDP",   606, 254, 156, "Mill Diff. Pressure", "mbar", 8.5, .4, 1, ["M59"], .4, .25);
+      addVal("hotAirT",  108, 646, 152, "Hot Air Temp", "°C", 312, 4, 0, [], 312, .05);
+      addVal("sealPress",300, 590, 152, "Seal Air Pressure", "mbar", 22, .8, 1, ["SEAL"], 0, .3);
+      addVal("hydPress", 492, 788, 152, "Hyd. Oil Pressure", "bar", 125, 3, 0, ["M11"], 0, .3);
+      addVal("lubeT",    492, 846, 152, "Lube Oil Temp", "°C", 46, .8, 1, ["M8"], 33, .05);
+      addVal("rejT",     958, 646, 152, "Reject Chamber Temp", "°C", 72, 1.5, 1, ["MAIN"], 35, .05);
+      addVal("fInP",    1092, 240, 148, "Filter Inlet Press", "mbar", -14, .8, 1, ["M59"], 0, .3);
+      addVal("fOutP",   1092, 290, 148, "Filter Outlet Press", "mbar", -25.5, .8, 1, ["M59"], 0, .3);
+      addVal("hopT",    1252, 240, 100, "Hopper Temp", "°C", 82, 1.2, 1, ["M59"], 36, .05);
+      addVal("fanCurr", 1392, 402, 152, "Fan Current", "A", 142, 3.5, 0, ["M59"], 0, .3);
+      addVal("fanBear", 1392, 454, 152, "Fan Bearing Temp", "°C", 64, 1, 1, ["M59"], 34, .05);
+      addVal("pfKiln",  1145, 894, 150, "Kiln Pfister Flow", "t/h", 11.5, .4, 1, ["PFK"], 0, .3);
+      addVal("pfPC",    1330, 894, 150, "PC Pfister Flow", "t/h", 7.0, .3, 1, ["PFP"], 0, .3);
+      addVal("coKiln",  1156, 672, 128, "CO Cone Temp", "°C", 68, 1, 1, [], 68, .03);
+      addVal("coPC",    1341, 672, 128, "CO Cone Temp", "°C", 66, 1, 1, [], 66, .03);
+
+      /* Filter Diff. Pressure gets its own box + logic (interlock) */
+      var fDPel = valueBox(1092, 340, 148, "Filter Diff. Press");
+      unitAfter(fDPel, 1092 + 148 - 4*6.6 - 6, 340 + 36, "mbar");
+      var filterDP = 11.5, extraDP = 0, dpHighTicks = 0, dpAlarm = false;
+
+      /* Winding temperatures: one wide box, three readouts */
+      (function(){
+        var g = el("g", {}, valuesLayer);
+        var r = el("rect", {x:940, y:268, width:150, height:92, rx:5, fill:"#060d18", stroke:"#33507e", "stroke-width":1.2}, g);
+        r.setAttribute("style","filter:drop-shadow(0 3px 5px rgba(0,0,0,.5))");
+        txt(g, 948, 284, "Winding Temp °C", "val-label", "start");
+        var rows = [["U",306],["V",326],["W",346]];
+        rows.forEach(function(row){
+          txt(g, 950, row[1], row[0], "val-label", "start");
+          var v = txt(g, 972, row[1], "--", "val-num", "start");
+          v.setAttribute("font-size","15");
+          VALS.push({id:"wind"+row[0], el:v, base: row[0]==="V"?98:(row[0]==="U"?96:95), noise:1.2, dec:1, src:["MAIN"], off:34, rate:.05,
+                     v: row[0]==="V"?98:(row[0]==="U"?96:95)});
+        });
+      })();
+
+      /* Hyd. oil pressure bar inside auxiliaries */
+      var hydBarFill, hydBarPct;
+      (function(){
+        txt(valuesLayer, 668, 800, "", "val-label", "start"); // spacer no-op keeps layer order simple
+      })();
+
+      /* ---------------- flows & equipment animation ---------------- */
+      var flowEls = Array.prototype.slice.call(document.querySelectorAll(".flowline"));
+      function condOk(cond){
+        if (cond === "always") return true;
+        return cond.split("&").every(function(id){ return !!S[id]; });
+      }
+      var fanBlades = document.getElementById("fanBlades");
+      var plume = document.getElementById("plume");
+      var classSpin = document.getElementById("classSpin");
+      var dpLamp = document.getElementById("dpLamp");
+      var dpLampTxt = document.getElementById("dpLampTxt");
+
+      function refreshFlows(){
+        flowEls.forEach(function(p){
+          p.classList.toggle("on", condOk(p.getAttribute("data-cond")));
+        });
+        fanBlades.setAttribute("class", S["M59"] ? "spin" : "");
+        plume.classList.toggle("on", !!S["M59"]);
+        classSpin.setAttribute("class", S["M14"] ? "spin-slow" : "");
+      }
+
+      var hmiListeners = [];
+      function hmiNotify(id){
+        for (var i = 0; i < hmiListeners.length; i++){ try { hmiListeners[i](id); } catch(e){} }
+      }
+      function toggleMotor(id){
+        S[id] = !S[id];
+        refreshMotorVisual(id);
+        refreshFlows();
+        hmiNotify(id);
+      }
+      function setAll(run){
+        Object.keys(S).forEach(function(id){ S[id] = run; refreshMotorVisual(id); });
+        refreshFlows();
+        hmiNotify("ALL");
+      }
+      /* Shared-state bridge for the Motors page faceplates (M3 / M14 / M59 / …) */
+      window.HMI = {
+        S: S,
+        toggle: toggleMotor,
+        set: function(id, v){
+          v = !!v;
+          if (S[id] === v) return;
+          S[id] = v;
+          refreshMotorVisual(id);
+          refreshFlows();
+          hmiNotify(id);
+        },
+        onChange: function(f){ hmiListeners.push(f); }
+      };
+      document.getElementById("btnAll").addEventListener("click", function(){ setAll(true); });
+      document.getElementById("btnStop").addEventListener("click", function(){ setAll(false); });
+
+      /* ---------------- bin levels ---------------- */
+      var lvlK = 62, lvlP = 47;
+      var lvlKFill = document.getElementById("lvlKFill"), lvlKText = document.getElementById("lvlKText");
+      var lvlPFill = document.getElementById("lvlPFill"), lvlPText = document.getElementById("lvlPText");
+      function drawLevel(fill, textEl, lvl){
+        var h = Math.max(2, lvl / 100 * 80);
+        fill.setAttribute("y", 752 - h);
+        fill.setAttribute("height", h);
+        textEl.textContent = Math.round(lvl) + "%";
+      }
+
+      /* ---------------- trend ---------------- */
+      var trend = document.getElementById("trend");
+      var tctx = trend.getContext("2d");
+      var histT = [], histF = [], HIST_MAX = 150;
+      for (var pi = 0; pi < HIST_MAX; pi++){
+        histT.push(78 + (Math.random() - .5) * 2.4);
+        histF.push(18.5 + (Math.random() - .5) * 1.1);
+      }
+      function drawTrend(){
+        var w = trend.width, h = trend.height;
+        tctx.clearRect(0, 0, w, h);
+        tctx.strokeStyle = "rgba(90,130,180,.25)";
+        tctx.lineWidth = 1;
+        for (var gy = 12; gy < h; gy += 16){
+          tctx.beginPath(); tctx.moveTo(0, gy); tctx.lineTo(w, gy); tctx.stroke();
+        }
+        function series(data, min, max, color){
+          if (data.length < 2) return;
+          tctx.strokeStyle = color; tctx.lineWidth = 2; tctx.beginPath();
+          data.forEach(function(v, i){
+            var x = i / (HIST_MAX - 1) * w;
+            var y = h - 4 - (v - min) / (max - min) * (h - 10);
+            if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y);
+          });
+          tctx.stroke();
+        }
+        series(histT, 30, 100, "#ffa94d");
+        series(histF, 0, 25, "#57c7ff");
+      }
+
+      /* ---------------- main 1-second tick ---------------- */
+      function getVal(id){
+        for (var i = 0; i < VALS.length; i++) if (VALS[i].id === id) return VALS[i].v;
+        return 0;
+      }
+      function tick(){
+        VALS.forEach(function(p){
+          var live = p.src.every(function(id){ return !!S[id]; });
+          var target = live ? p.base + (Math.random() - .5) * 2 * p.noise : p.off;
+          p.v += (target - p.v) * p.rate + (live ? (Math.random() - .5) * p.noise * .35 : 0);
+          if (p.dec === 0) p.el.textContent = Math.round(p.v);
+          else p.el.textContent = p.v.toFixed(p.dec);
+        });
+
+        /* Filter DP = inlet - outlet, plus a build-up term while the fan is stopped.
+           Fan stopped -> DP climbs -> DP ALARM after a few seconds; restart clears it. */
+        if (S["M59"]) {
+          extraDP *= .75;
+          dpHighTicks = 0;
+        } else {
+          extraDP = Math.min(34, extraDP + 1.6);
+        }
+        filterDP = Math.max(.5, (getVal("fInP") - getVal("fOutP")) + extraDP);
+        if (filterDP > 24) { dpHighTicks++; if (dpHighTicks >= 3) dpAlarm = true; }
+        if (S["M59"] && filterDP < 17) dpAlarm = false;
+        fDPel.textContent = filterDP.toFixed(1);
+        if (dpAlarm) {
+          dpLamp.setAttribute("fill", "#ff2d2d");
+          dpLamp.setAttribute("class", "blink");
+          dpLampTxt.style.fill = "#ff8080";
+        } else {
+          dpLamp.setAttribute("fill", "#5a2020");
+          dpLamp.removeAttribute("class");
+          dpLampTxt.style.fill = "#eaf4ff";
+        }
+
+        /* Bin levels: screw conveyor fills, Pfister feeders draw down */
+        var inflow = (S["SCREW"] && S["M59"]) ? .30 : 0;
+        lvlK += inflow * .55 - (S["PFK"] ? .17 : 0);
+        lvlP += inflow * .45 - (S["PFP"] ? .11 : 0);
+        lvlK = Math.max(4, Math.min(96, lvlK));
+        lvlP = Math.max(4, Math.min(96, lvlP));
+        drawLevel(lvlKFill, lvlKText, lvlK);
+        drawLevel(lvlPFill, lvlPText, lvlP);
+
+        /* Trend history */
+        histT.push(getVal("millOutT")); if (histT.length > HIST_MAX) histT.shift();
+        histF.push(getVal("feedFlow")); if (histF.length > HIST_MAX) histF.shift();
+        drawTrend();
+      }
+
+      /* ---------------- clock ---------------- */
+      var clockEl = document.getElementById("clock");
+      function clock(){
+        var d = new Date();
+        var days = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+        var mons = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+        function p2(n){ return (n < 10 ? "0" : "") + n; }
+        clockEl.textContent = days[d.getDay()] + " " + p2(d.getDate()) + " " + mons[d.getMonth()] + " " + d.getFullYear() +
+          "  " + p2(d.getHours()) + ":" + p2(d.getMinutes()) + ":" + p2(d.getSeconds());
+      }
+
+      /* init */
+      Object.keys(S).forEach(refreshMotorVisual);
+      refreshFlows();
+      drawLevel(lvlKFill, lvlKText, lvlK);
+      drawLevel(lvlPFill, lvlPText, lvlP);
+      clock();
+      setInterval(clock, 500);
+      tick();
+      setInterval(tick, 1000);
+    })();
+    </script>
+  <script>var IO_DATA = {"AI":[{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":0,"tag":"SEAL","desc":"CP003 AIR AND PRIMARY PRESSURE DIFFERENTIAL\u25b3P"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":1,"tag":"SEAL","desc":"CP005 AIR PRESSURE"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":2,"tag":"PRIMARY","desc":"CP011 AIR PRESSURE MILL INLET"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":3,"tag":"OUTLET","desc":"CP012 CLASSIFIER PRESSURE"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":4,"tag":"MILL","desc":"CP015 DIFFERENTIAL PRESSURE"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":5,"tag":"BFIP","desc":"MILL BAG FILTER INLET PRESSURE"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":6,"tag":"BFOP","desc":"MILL BAG FILTER OUTLET PRESSURE"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":7,"tag":"MILL","desc":"CP101 LUBRICATION OIL PRESSURE"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":8,"tag":"PRESSURE","desc":"CP203 HYDRAULIC OIL"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":9,"tag":"ANALOG","desc":"KCP KILN PRESSURE INPUT"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":10,"tag":"PCCP","desc":"PRESSURE"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":11,"tag":"BFPAP","desc":"BAG FILTER PURGING AIR PRESSURE"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":12,"tag":"MILL","desc":"CMV VIBRATION"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":13,"tag":"PRIMARY","desc":"CT015 AIR TEMP. MILL INLET"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":14,"tag":"","desc":"HAT HOT AIR TEMPERATURE"},{"panel":1,"sheet":7,"module":"CT1172A","tm":"TM-01","ch":15,"tag":"MIXTURE","desc":"CT001 TEMP. CLASSITIER AIR-POWER"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":0,"tag":"MIXTURE","desc":"CT002 TEMP. CLASSITIER AIR-POWER"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":1,"tag":"MIXTURE","desc":"CT003 TEMP. CLASSITIER AIR-POWER"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":2,"tag":"MAIN","desc":"CT010 MOTOR WINDING TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":3,"tag":"MAIN","desc":"CT011 MOTOR WINDING TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":4,"tag":"MAIN","desc":"CT012 MOTOR WINDING TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":5,"tag":"MAIN","desc":"CT013 MOTOR COUPLE END BEARING TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":6,"tag":"MAIN","desc":"CT014 MOTOR BACK END BEARING TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":7,"tag":"MILL","desc":"CT017 ROLLER TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":8,"tag":"MILL","desc":"CT018 ROLLER TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":9,"tag":"ANALOG","desc":"CT019 MILL ROLLER TEMPERATURE INPUT"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":10,"tag":"MILL","desc":"CT0109 THRUST BEARING TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":11,"tag":"MILL","desc":"CT0110 THRUST BEARING TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":12,"tag":"MILL","desc":"CT0111 THRUST BEARING TEMPERATURE"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":13,"tag":"MILL","desc":"HTT1 HYDRAULIC TANK TEMP"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":14,"tag":"MILL","desc":"HTT2 HYDRAULIC TANK TEMP"},{"panel":1,"sheet":8,"module":"CT1172A","tm":"TM-02","ch":15,"tag":"GEAR","desc":"CT101 BOX OIL TANK TEMPERATURE"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":0,"tag":"GEAR","desc":"CT102 BOX OIL TANK TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":1,"tag":"GEAR","desc":"CT103 BOX OIL TANK TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":2,"tag":"RCBT","desc":"RAW BIN TEMPERATURE"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":3,"tag":"RCBL","desc":"RAW BIN LEVEL"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":4,"tag":"RCFFR","desc":"RAW FEEDER FLOW RATE"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":5,"tag":"BFIT","desc":"BAG FILTER INLET TEMPERATURE"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":6,"tag":"BFOT","desc":"BAG FILTER OUTLET TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":7,"tag":"FILTER","desc":"BFCT1 BAG CONE TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":8,"tag":"FILTER","desc":"BFCT2 BAG CONE TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":9,"tag":"ANALOG","desc":"BFCT3 BAG FILTER CONE TEMP. INPUT"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":10,"tag":"FILTER","desc":"BFCT4 BAG CONE TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":11,"tag":"FILTER","desc":"BFCT5 BAG CONE TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":12,"tag":"FILTER","desc":"BFCT6 BAG CONE TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":13,"tag":"FILTER","desc":"BFCT7 BAG CONE TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":14,"tag":"FILTER","desc":"BFCT8 BAG CONE TEMP"},{"panel":1,"sheet":9,"module":"CT1172A","tm":"TM-03","ch":15,"tag":"FILTER","desc":"BFCT9 BAG CONE TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":0,"tag":"FILTER","desc":"BFCT10 BAG CONE TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":1,"tag":"FILTER","desc":"BFHT1 BAG HOPPER TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":2,"tag":"FILTER","desc":"BFHT2 BAG HOPPER TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":3,"tag":"FILTER","desc":"BFHT3 BAG HOPPER TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":4,"tag":"FILTER","desc":"BFHT4 BAG HOPPER TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":5,"tag":"FILTER","desc":"BFHT5 BAG HOPPER TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":6,"tag":"FILTER","desc":"BFHT6 BAG HOPPER TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":7,"tag":"FILTER","desc":"BFHT7 BAG HOPPER TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":8,"tag":"FILTER","desc":"BFHT8 BAG HOPPER TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":9,"tag":"ANALOG","desc":"BFHT9 BAG FILTER HOPPER TEMP. INPUT"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":10,"tag":"FILTER","desc":"BFHT10 BAG HOPPER TEMP"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":11,"tag":"FILTER","desc":"BFACT1 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":12,"tag":"FILTER","desc":"BFACT2 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":13,"tag":"FILTER","desc":"BFACT3 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":14,"tag":"FILTER","desc":"BFACT4 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":10,"module":"CT1172A","tm":"TM-04","ch":15,"tag":"FILTER","desc":"BFACT5 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":0,"tag":"FILTER","desc":"BFACT6 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":1,"tag":"FILTER","desc":"BFACT7 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":2,"tag":"FILTER","desc":"BFACT8 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":3,"tag":"FILTER","desc":"BFACT9 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":4,"tag":"FILTER","desc":"BFACT10 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":5,"tag":"FILTER","desc":"BFACT11 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":6,"tag":"FILTER","desc":"BFACT12 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":7,"tag":"FILTER","desc":"BFACT13 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":8,"tag":"FILTER","desc":"BFACT14 BAG AIR CHAMBER TEMP. EAST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":9,"tag":"FILTER","desc":"BFACT15 BAG AIR CHAMBER TEMP. WEST ANALOG INPUT"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":10,"tag":"FILTER","desc":"BFACT16 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":11,"tag":"FILTER","desc":"BFACT17 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":12,"tag":"FILTER","desc":"BFACT18 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":13,"tag":"FILTER","desc":"BFACT19 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":14,"tag":"FILTER","desc":"BFACT20 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":11,"module":"CT1172A","tm":"TM-05","ch":15,"tag":"FILTER","desc":"BFACT21 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":0,"tag":"FILTER","desc":"BFACT22 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":1,"tag":"FILTER","desc":"BFACT23 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":2,"tag":"FILTER","desc":"BFACT24 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":3,"tag":"FILTER","desc":"BFACT25 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":4,"tag":"FILTER","desc":"BFACT26 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":5,"tag":"FILTER","desc":"BFACT27 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":6,"tag":"FILTER","desc":"BFACT28 BAG AIR CHAMBER TEMP. WEST"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":7,"tag":"FCBKCT","desc":"FINE BIN KILN CONE TEMP"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":8,"tag":"FCBKHT","desc":"FINE BIN KILN HOPPER TEMP"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":9,"tag":"ANALOG","desc":"FCBKW FINE BIN KILN WEIGHT INPUT"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":10,"tag":"FCBKCO","desc":"FINE BIN KILN"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":11,"tag":"FCBPCCT","desc":"FINE BIN CONE TEMPERATURE"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":12,"tag":"FCBPCHT","desc":"FINE BIN HOPPER TEMP"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":13,"tag":"FCBPCW","desc":"FINE BIN WEIGHT"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":14,"tag":"FCBPCCO","desc":"FINE BIN"},{"panel":1,"sheet":12,"module":"CT1172A","tm":"TM-7","ch":15,"tag":"HGDP","desc":"HOT GAS DAMPER POSITION"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":0,"tag":"RADP","desc":"RECIRCULATION AIR DAMPER POSITION"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":1,"tag":"BFFDP","desc":"BAG FILTER FAN DAMPER POSITION"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":2,"tag":"BFFRPM","desc":"BAG FILTER FAN RPM"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":3,"tag":"CRPM","desc":"CLASSIFIER RPM"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":4,"tag":"RCBA","desc":"RAW BELT CURRENT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":5,"tag":"MILL","desc":"11A05-M1A MAIN MOTOR CURRENT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":6,"tag":"MADA","desc":"MILL AUXILIARY DRIVE CURRENT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":7,"tag":"CURRENT","desc":"11A05-M3A CLASSIFIER"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":8,"tag":"FILTER","desc":"11A.08MA BAG FAN CURRENT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":9,"tag":"ROOTS","desc":"11B.09M-1A BLOWER CURRENT ANALOG INPUT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":10,"tag":"ROOTS","desc":"11B.09M-2A BLOWER CURRENT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":11,"tag":"ROOTS","desc":"11B.09M-3A BLOWER CURRENT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":12,"tag":"SCREW","desc":"11A.09PM_1A CONVEYOR 11A.09PM/1 CURRENT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":13,"tag":"SCREW","desc":"11A.09PM_2A CONVEYOR 11A.09PM/2 CURRENT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":14,"tag":"SCREW","desc":"11A.03 CONVEYOR CURRENT"},{"panel":2,"sheet":7,"module":"CT1172A","tm":"TM-12","ch":15,"tag":"SCREW","desc":"11B.01 CONVEYOR CURRENT"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":0,"tag":"FILTER","desc":"11B.12 DEDUSTING BAG CURRENT"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":1,"tag":"KCFR","desc":"KILN FLOW RATE Allen-Bradley"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":2,"tag":"KFCW","desc":"KILN PFISTER FLOW WEIGHT"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":3,"tag":"KFCRPM","desc":"KILN PFISTER FLOW RPM"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":4,"tag":"PCFR","desc":"FLOW RATE Allen-Bradley"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":5,"tag":"PCFCW","desc":"PFISTER FLOW WEIGHT"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":6,"tag":"PCFRPM","desc":"PFISTER FLOW RPM"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":7,"tag":"BFMWTU","desc":"BAG FILTER FAN MOTOR WINDING TEMPERATURE"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":8,"tag":"BFMWTV","desc":"FILTER FAN MOTOR WINDING TEMPERATURE"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":9,"tag":"ANALOG","desc":"BFMWTW BAG FILTER FAN MOTOR WINDING TEMPERATURE INPUT"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":10,"tag":"BFMCET","desc":"BAG FILTER FAN MOTOR COUPLE END BEARING TEMP"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":11,"tag":"BFMBET","desc":"BAG FILTER FAN MOTOR BACK END BEARING TEM"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":12,"tag":"GEAR","desc":"CT020 CLASSIFIER BOX TEMPERATURE"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":13,"tag":"BFFCET","desc":"BAG FILTER FAN COUPLE END BEARING TEMP"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":14,"tag":"BFFBET","desc":"BAG FILTER FAN BACK END BEARING TEMP"},{"panel":2,"sheet":8,"module":"CT1172A","tm":"TM-12","ch":15,"tag":"MRCT","desc":"MILL REJECT CHAMBER TEMPERATURE"},{"panel":2,"sheet":9,"module":"CT1172A","tm":"TM-10","ch":9,"tag":"ANALOG","desc":"INPUT"},{"panel":2,"sheet":10,"module":"CT1172A","tm":"TM-11","ch":9,"tag":"ANALOG","desc":"INPUT"}],"AO":[{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":0,"tag":"FEEDER","desc":"11A.03MA RAW SET POINT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":1,"tag":"HGDSP","desc":"HOT GAS DAMPER SETPOINT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":2,"tag":"RADSP","desc":"RECIRCULATION AIR DAMPER SET POINT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":3,"tag":"BFFDSP","desc":"BAG FILTER FAN DAMPER SET POINT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":4,"tag":"BFFRPMSP","desc":"BAG FILTER FAN RPM SET POINT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":5,"tag":"CRPMSP","desc":"CLASSIFIER RPM SET POINT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":6,"tag":"KCFRSP","desc":"KILN FLOW RATE SET POINT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":7,"tag":"PCCFRSP","desc":"FLOW RATE SET POINT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":8,"tag":"HOPSP","desc":"HYDRAULIC OIL PRESSURE SET POINT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":9,"tag":"ANALOG","desc":"OUTPUT"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":13,"tag":"FCBKCT","desc":"FINE BIN KILN CONE TEMP"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":14,"tag":"FCBKHT","desc":"FINE BIN KILN HOPPER TEMP"},{"panel":1,"sheet":13,"module":"CT1172A","tm":"TM-6","ch":15,"tag":"FCBKW","desc":"FINE BIN KILN WEIGHT"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":0,"tag":"FCBKCO","desc":"FINE BIN KILN"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":1,"tag":"FCBPCCT","desc":"FINE BIN CONE TEMPERATURE"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":2,"tag":"FCBPCHT","desc":"FINE BIN HOPPER TEMP"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":3,"tag":"FCBPCW","desc":"FINE BIN WEIGHT"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":4,"tag":"FCBPCCO","desc":"FINE BIN"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":5,"tag":"ROOTS","desc":"11B.09M-1A BLOWER CURRENT"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":6,"tag":"ROOTS","desc":"11B.09M-2A BLOWER CURRENT"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":7,"tag":"ROOTS","desc":"11B.09M-3A BLOWER CURRENT"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":8,"tag":"KCFR","desc":"KILN FLOW RATE"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":9,"tag":"ANALOG","desc":"KFCW KILN PFISTER FLOW WEIGHT OUTPUT"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":10,"tag":"KFCRPM","desc":"KILN PFISTER FLOW RPM"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":11,"tag":"PCFR","desc":"FLOW RATE"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":12,"tag":"PCFCW","desc":"PFISTER FLOW WEIGHT"},{"panel":2,"sheet":11,"module":"CT1172A","tm":"TM-12","ch":13,"tag":"PCFRPM","desc":"PFISTER FLOW RPM"}],"DI":[{"panel":2,"sheet":12,"module":"CT1173P","tm":"TM-13","ch":0,"tag":"","desc":"Ready Rotary"},{"panel":2,"sheet":12,"module":"CT1173P","tm":"TM-13","ch":1,"tag":"","desc":"Remote Valve"},{"panel":2,"sheet":12,"module":"CT1173P","tm":"TM-13","ch":3,"tag":"","desc":"Fault"},{"panel":2,"sheet":12,"module":"CT1173P","tm":"TM-13","ch":4,"tag":"","desc":"Ready Rotary"},{"panel":2,"sheet":12,"module":"CT1173P","tm":"TM-13","ch":5,"tag":"","desc":"Remote Valve"},{"panel":2,"sheet":12,"module":"CT1173P","tm":"TM-13","ch":7,"tag":"","desc":"Fault"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":0,"tag":"","desc":"Ready Vibrator"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":1,"tag":"","desc":"Remote Motor"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":3,"tag":"","desc":"Fault"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":4,"tag":"","desc":"Ready Vibrator"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":5,"tag":"","desc":"Remote Motor"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":7,"tag":"","desc":"Fault"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":8,"tag":"","desc":"Ready Waying Feeder"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":9,"tag":"","desc":"Remote Belt Convary"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":11,"tag":"","desc":"Fault"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":12,"tag":"","desc":"Ready Motor"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":13,"tag":"","desc":"Remote Cooling Fan"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":15,"tag":"","desc":"Fault"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":16,"tag":"","desc":"Scraper Ready"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":17,"tag":"","desc":"Motor Remote"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":19,"tag":"","desc":"11a.03-3 Fault"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":20,"tag":"","desc":"Feeding Ready"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":21,"tag":"","desc":"Rotary Valve Remote"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":23,"tag":"","desc":"11a.04 Fault"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":24,"tag":"","desc":"Mill Ready"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":25,"tag":"","desc":"Main Drive Remote"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":27,"tag":"","desc":"11a.05-M1 Fault"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":28,"tag":"","desc":"Gear Box Mill Ready"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":29,"tag":"","desc":"Lubrication Oil Mill Pump Remote"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":30,"tag":"","desc":"Pump Mill Fault"},{"panel":3,"sheet":7,"module":"CT1173P","tm":"TM-15","ch":31,"tag":"","desc":"11a.05-1 Lubrication Oil Pump Low Speed"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":0,"tag":"","desc":"High Speed Lubrication Oil Pump Gear"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":1,"tag":"","desc":"Permissive Lubrication Oil Pump Box"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":2,"tag":"","desc":"Not Permissive Lubrication Oil Pump"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":3,"tag":"","desc":"Ready Lubrication"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":4,"tag":"","desc":"Remote Heater"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":6,"tag":"","desc":"Fault 11a."},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":7,"tag":"","desc":"Ready Turning"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":8,"tag":"","desc":"Remote Motor"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":10,"tag":"","desc":"Fault"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":11,"tag":"","desc":"Hydraulic Loading Pump"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":12,"tag":"","desc":"Hydraulic Electric Heater Stop Pump"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":13,"tag":"","desc":"Electrumgetic Reversing Valve Close Arrive"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":14,"tag":"","desc":"Electrumgetic Reversing Valve Open Arrive"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":15,"tag":"","desc":"Variable Load"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":16,"tag":"","desc":"Hydraulic Out Put Constant"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":17,"tag":"","desc":"11a.05-3 Pump Loading Roller And Off Lift"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":18,"tag":"","desc":"Hydraulic Ready"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":19,"tag":"","desc":"Heater Remote"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":21,"tag":"","desc":"11a.05-3-1 Fault"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":22,"tag":"","desc":"Mill Ready"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":23,"tag":"","desc":"Cooling Fan Remote"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":25,"tag":"","desc":"11a.05-4 Fault"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":26,"tag":"","desc":"Remote"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":27,"tag":"","desc":"Classifier Motor Controlling Way Position (Ready)"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":28,"tag":"","desc":"Control Circuit Failaure (Fault)"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":29,"tag":"","desc":"Frequency Convertor Failure (Fault)"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":30,"tag":"","desc":"Fan Motor"},{"panel":3,"sheet":8,"module":"CT1173P","tm":"TM-16","ch":31,"tag":"","desc":"11a.05-5 Fan Motor Failure"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":0,"tag":"","desc":"Frequency Convertor Classifier"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":1,"tag":"","desc":"Frequency Convertor Out Put Switch Motor"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":2,"tag":"","desc":"Ready"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":3,"tag":"","desc":"Remote"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":4,"tag":"","desc":"Forward Pneumatic Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":5,"tag":"","desc":"Reverse"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":6,"tag":"","desc":"Forward Limit"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":7,"tag":"","desc":"Reverse Limit"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":8,"tag":"","desc":"Fault"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":10,"tag":"","desc":"Automatic Operation Signal"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":11,"tag":"","desc":"Speed Reporting Signal Main Bag"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":12,"tag":"","desc":"Ash Hopper Temperature Alarm Filter"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":13,"tag":"","desc":"Motor Over Load Signal"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":14,"tag":"","desc":"Difference Pressure Alarm"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":15,"tag":"","desc":"Rotary Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":16,"tag":"","desc":"Rotary Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":17,"tag":"","desc":"Rotary Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":18,"tag":"","desc":"Rotary Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":19,"tag":"","desc":"Main Bag Rotary Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":20,"tag":"","desc":"Filter Rotary Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":21,"tag":"","desc":"11a.07 Rotary Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":22,"tag":"","desc":"Rotary Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":23,"tag":"","desc":"Rotary Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":24,"tag":"","desc":"Rotary Valve 10Run"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":25,"tag":"","desc":"Gate Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":26,"tag":"","desc":"Gate Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":27,"tag":"","desc":"Main Bag Gate Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":28,"tag":"","desc":"Filter Gate Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":29,"tag":"","desc":"11a.07 Gate Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":30,"tag":"","desc":"Gate Valve"},{"panel":3,"sheet":9,"module":"CT1173P","tm":"TM-17","ch":31,"tag":"","desc":"Gate Valve"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":0,"tag":"","desc":"Gate Valve Main Bag"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":1,"tag":"","desc":"Gate Valve Filter"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":2,"tag":"","desc":"Gate Valve"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":3,"tag":"","desc":"Level Signal"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":4,"tag":"","desc":"Level Signal"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":5,"tag":"","desc":"Level Signal"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":6,"tag":"","desc":"Level Signal ain"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":7,"tag":"","desc":"Level Signal Bag Filter"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":8,"tag":"","desc":"Level Signal"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":9,"tag":"","desc":"Level Signal"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":10,"tag":"","desc":"Level Signal"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":11,"tag":"","desc":"Level Signal"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":12,"tag":"","desc":"Level Signal"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":16,"tag":"","desc":"Bag Filter Ready"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":17,"tag":"","desc":"Exust fan Remote"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":19,"tag":"","desc":"11a.07-1 Fault"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":20,"tag":"","desc":"Bag Filter Ready"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":21,"tag":"","desc":"Exhaust Fan Remote"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":23,"tag":"","desc":"11a.07-2 Fault"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":24,"tag":"","desc":"Bag Filter Ready"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":25,"tag":"","desc":"Exhaust Fan Remote"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":27,"tag":"","desc":"11a.07-3 Fault"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":28,"tag":"","desc":"Bag Filter Ready"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":29,"tag":"","desc":"Exhaust Fan Remote"},{"panel":4,"sheet":7,"module":"CT1173P","tm":"TM-20","ch":31,"tag":"","desc":"11a.07-4 Fault"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":0,"tag":"","desc":"Ready Ventilator"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":1,"tag":"","desc":"Remote fan"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":3,"tag":"","desc":"Fault"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":4,"tag":"","desc":"Ready"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":5,"tag":"","desc":"Remote Ventilator Motor"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":7,"tag":"","desc":"Fault"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":8,"tag":"","desc":"Ready"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":9,"tag":"","desc":"Remote Ventilator Motor"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":11,"tag":"","desc":"Fault"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":12,"tag":"","desc":"Ready Screw"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":13,"tag":"","desc":"Remote Conveyor"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":15,"tag":"","desc":"Fault"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":16,"tag":"","desc":"Screw Conveyor 11a.09-1 Motion Detector"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":17,"tag":"","desc":"Screw Ready"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":18,"tag":"","desc":"Conveyor Remote"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":20,"tag":"","desc":"11a.09-2 Fault"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":21,"tag":"","desc":"Motion Detector"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":22,"tag":"","desc":"Screw Ready"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":23,"tag":"","desc":"Conveyor Remote"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":25,"tag":"","desc":"11a.09-3 Fault"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":26,"tag":"","desc":"Motion Detector"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":27,"tag":"","desc":"Screw Ready"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":28,"tag":"","desc":"Conveyor Remote"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":30,"tag":"","desc":"11a.09-4 Fault"},{"panel":4,"sheet":8,"module":"CT1173P","tm":"TM-21","ch":31,"tag":"","desc":"Motion Detector"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":0,"tag":"","desc":"Ready Bag Filter"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":1,"tag":"","desc":"Remote Rotary Valve"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":3,"tag":"","desc":"Fault"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":4,"tag":"","desc":"Ready"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":5,"tag":"","desc":"Remote Electic"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":6,"tag":"","desc":"Forward Motrized Valve"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":7,"tag":"","desc":"Reverse"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":8,"tag":"","desc":"Forward Limit"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":9,"tag":"","desc":"Reverse Limit 11a-13"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":10,"tag":"","desc":"Fault"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":11,"tag":"","desc":"Ready Electic"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":12,"tag":"","desc":"Remote Butterfly Valve"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":14,"tag":"","desc":"Fault 11a-14"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":16,"tag":"","desc":"Bag Filter Ready"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":17,"tag":"","desc":"Rotary Valve Remote"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":19,"tag":"","desc":"11a-15 Fault"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":20,"tag":"","desc":"Bag Ready"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":21,"tag":"","desc":"Filter Fan Remote"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":23,"tag":"","desc":"11a-16 Fault"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":24,"tag":"","desc":"Ready"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":25,"tag":"","desc":"Electrical Remote"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":26,"tag":"","desc":"Shut Off Valve Forward"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":27,"tag":"","desc":"Reverse"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":28,"tag":"","desc":"Forward Limit"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":29,"tag":"","desc":"11b.02-1 Reverse Limit"},{"panel":4,"sheet":9,"module":"CT1173P","tm":"TM-22","ch":30,"tag":"","desc":"Fault"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":0,"tag":"","desc":"Ready"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":1,"tag":"","desc":"Remote Electrical"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":2,"tag":"","desc":"Forward shut off valve"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":3,"tag":"","desc":"Reverse"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":4,"tag":"","desc":"Forward Limit"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":5,"tag":"","desc":"Reverse Limit"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":6,"tag":"","desc":"Fault"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":7,"tag":"","desc":"Ready"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":8,"tag":"","desc":"Remote Electrical"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":9,"tag":"","desc":"Forward shut off valve"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":10,"tag":"","desc":"Reverse"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":11,"tag":"","desc":"Forward Limit"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":12,"tag":"","desc":"Reverse Limit"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":13,"tag":"","desc":"Fault"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":16,"tag":"","desc":"Ready"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":17,"tag":"","desc":"Electrical Remote"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":18,"tag":"","desc":"Shut Off Valve Forward"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":19,"tag":"","desc":"Reverse"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":20,"tag":"","desc":"Forward Limit"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":21,"tag":"","desc":"11b.02-4 Reverse Limit"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":22,"tag":"","desc":"Fault"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":23,"tag":"","desc":"Ready"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":24,"tag":"","desc":"Electrical Remote"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":25,"tag":"","desc":"Shut Off Valve Forward"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":26,"tag":"","desc":"Reverse"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":27,"tag":"","desc":"Forward Limit"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":28,"tag":"","desc":"11b.02-5 Reverse Limit"},{"panel":5,"sheet":7,"module":"CT1173P","tm":"TM-25","ch":29,"tag":"","desc":"Fault"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":0,"tag":"","desc":"Ready"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":1,"tag":"","desc":"Remote"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":2,"tag":"","desc":"Forward Screw Conveyor"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":3,"tag":"","desc":"Reverse"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":4,"tag":"","desc":"Forward Limit"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":5,"tag":"","desc":"Reverse Limit"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":6,"tag":"","desc":"Fault"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":7,"tag":"","desc":"Motion Detector"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":8,"tag":"","desc":"Ready"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":9,"tag":"","desc":"Remote Sampler"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":11,"tag":"","desc":"Fault"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":12,"tag":"","desc":"Borner Remot Roter"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":13,"tag":"","desc":"Borner Scale Klin"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":14,"tag":"","desc":"Borner Fault"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":15,"tag":"","desc":"Borner Shut 11b-06-1"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":16,"tag":"","desc":"Borner Message Rooter"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":17,"tag":"","desc":"Borner Fault Rooter"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":18,"tag":"","desc":"Roter Borner Exceeding"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":19,"tag":"","desc":"Scale Klin Temp Drive ready"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":20,"tag":"","desc":"Borner Gate Close"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":21,"tag":"","desc":"11b-06-1 Borner Additional Gate Close"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":22,"tag":"","desc":"Borner Fault Aeration"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":23,"tag":"","desc":"Borner Totalizer Plase"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":24,"tag":"","desc":"Borner Reverse"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":25,"tag":"","desc":"Remote"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":27,"tag":"","desc":"Roter Scale Fault"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":28,"tag":"","desc":"Emergency Shut"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":29,"tag":"","desc":"11b-06-2 Message Rooter"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":30,"tag":"","desc":"Fault Rooter"},{"panel":5,"sheet":8,"module":"CT1173P","tm":"TM-26","ch":31,"tag":"","desc":"Exceeding Temp Drive Ready"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":0,"tag":"","desc":"Gate Close Roter"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":1,"tag":"","desc":"Additional Gate Close Scale"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":2,"tag":"","desc":"Fault Aeration"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":3,"tag":"","desc":"Totalizer Plase"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":4,"tag":"","desc":"Reverse"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":5,"tag":"","desc":"Ready Roots"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":6,"tag":"","desc":"Remote Blower"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":8,"tag":"","desc":"Fault"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":9,"tag":"","desc":"Ready Roots"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":10,"tag":"","desc":"Remote blower Motor"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":11,"tag":"","desc":"Cooling"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":12,"tag":"","desc":"Fault"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":16,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":17,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":18,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":19,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":20,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":21,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":22,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":23,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":24,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":5,"sheet":9,"module":"CT1173P","tm":"TM-27","ch":25,"tag":"","desc":"Main Bag Filter (Rotary Valve) Feeder Motor Motion Detection"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":0,"tag":"","desc":"Ready Roots"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":1,"tag":"","desc":"Remote Blower"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":3,"tag":"","desc":"Fault"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":4,"tag":"","desc":"Ready"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":5,"tag":"","desc":"Remote Roots blower"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":7,"tag":"","desc":"Fault"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":8,"tag":"","desc":"Ready Roots"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":9,"tag":"","desc":"Remote blower"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":11,"tag":"","desc":"Fault"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":12,"tag":"","desc":"Ready Roots"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":13,"tag":"","desc":"Remote blower Motor"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":14,"tag":"","desc":"Cooling"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":15,"tag":"","desc":"Fault"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":16,"tag":"","desc":"Ready"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":17,"tag":"","desc":"Electrical Remote"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":18,"tag":"","desc":"Motorized Valve Forward"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":19,"tag":"","desc":"Reverse"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":20,"tag":"","desc":"11b.09-1 Forward Limit"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":21,"tag":"","desc":"Reverse Limit"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":22,"tag":"","desc":"Fault"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":23,"tag":"","desc":"Ready"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":24,"tag":"","desc":"Electrical Remote"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":25,"tag":"","desc":"Motorized Valve Forward"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":26,"tag":"","desc":"Reverse"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":27,"tag":"","desc":"11b.09-2 Forward Limit"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":28,"tag":"","desc":"Reverse Limit"},{"panel":6,"sheet":7,"module":"CT1173P","tm":"TM-30","ch":29,"tag":"","desc":"Fault"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":0,"tag":"","desc":"Ready"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":1,"tag":"","desc":"Remote Electrical"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":2,"tag":"","desc":"Forward Motorized Valve"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":3,"tag":"","desc":"Reverse"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":4,"tag":"","desc":"Forward Limit"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":5,"tag":"","desc":"Reverse Limit"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":6,"tag":"","desc":"Fault"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":7,"tag":"","desc":"Ready"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":8,"tag":"","desc":"Remote Electrical"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":9,"tag":"","desc":"Forward Motorized Valve"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":10,"tag":"","desc":"Reverse"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":11,"tag":"","desc":"Forward Limit"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":12,"tag":"","desc":"Reverse Limit"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":13,"tag":"","desc":"Fault"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":16,"tag":"","desc":"Ready"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":17,"tag":"","desc":"Electrical Remote"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":18,"tag":"","desc":"Motorized Valve Forward"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":19,"tag":"","desc":"Reverse"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":20,"tag":"","desc":"11b.09-5 Forward Limit"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":21,"tag":"","desc":"Reverse Limit"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":22,"tag":"","desc":"Fault"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":23,"tag":"","desc":"Bag Filter Ready"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":24,"tag":"","desc":"Rotary Valve Remote"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":26,"tag":"","desc":"11b.11-1 Fault"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":27,"tag":"","desc":"Bag Ready"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":28,"tag":"","desc":"Filter Fan Remote"},{"panel":6,"sheet":8,"module":"CT1173P","tm":"TM-31","ch":30,"tag":"","desc":"11b.12 Fault"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":0,"tag":"","desc":"Ready Belt"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":1,"tag":"","desc":"Remote conveyor"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":3,"tag":"","desc":"Fault"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":4,"tag":"","desc":"Ready Belt"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":5,"tag":"","desc":"Remote conveyor"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":7,"tag":"","desc":"Fault"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":8,"tag":"","desc":"Ready Belt"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":9,"tag":"","desc":"Remote conveyor"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":11,"tag":"","desc":"Fault"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":12,"tag":"","desc":"Ready Bag Filter"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":13,"tag":"","desc":"Remote Rotary Valve"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":15,"tag":"","desc":"Fault"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":16,"tag":"","desc":"Bag Ready"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":17,"tag":"","desc":"Filter Fan Remote"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":19,"tag":"","desc":"Fault"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":20,"tag":"","desc":"Metal Ready"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":21,"tag":"","desc":"Detector Remote"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":23,"tag":"","desc":"Fault"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":24,"tag":"","desc":"Magnet Ready"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":25,"tag":"","desc":"Separator Remote"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":27,"tag":"","desc":"Fault"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":28,"tag":"","desc":"Pneumatic Ready"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":29,"tag":"","desc":"Three Way Remote"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":30,"tag":"","desc":"Gate"},{"panel":6,"sheet":9,"module":"CT1173P","tm":"TM-32","ch":31,"tag":"","desc":"Fault"}],"DO":[{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":0,"tag":"","desc":"Vibrator Motor Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":1,"tag":"","desc":"Vibrator Motor Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":2,"tag":"","desc":"Waying Feeder Belt Convary Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":3,"tag":"","desc":"Motor Cooling Fan Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":4,"tag":"","desc":"Scraper Motor Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":5,"tag":"","desc":"Feeding Rotary Valve Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":6,"tag":"","desc":"Mill Main Drive Command 11a.05-M1"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":7,"tag":"","desc":"Lubrication Oil Pump Command 11a.05-1 Gear Box"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":8,"tag":"","desc":"Lubrication Heater Command 11a."},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":9,"tag":"","desc":"Turning Motor Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":10,"tag":"","desc":"Hydraulic Pump Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":11,"tag":"","desc":"Hydraulic Roller Lift Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":12,"tag":"","desc":"Hydraulic Roller Close Command"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":13,"tag":"","desc":"Constant Load Operation Pump"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":14,"tag":"","desc":"Variable Load Operation"},{"panel":3,"sheet":10,"module":"CT1242A","tm":"TM-18","ch":15,"tag":"","desc":"Mill"},{"panel":3,"sheet":11,"module":"CT1242A","tm":"TM-18","ch":0,"tag":"","desc":"Hydraulic Heater Command"},{"panel":3,"sheet":11,"module":"CT1242A","tm":"TM-18","ch":1,"tag":"","desc":"Mill Cooling Fan Command"},{"panel":3,"sheet":11,"module":"CT1242A","tm":"TM-18","ch":2,"tag":"","desc":"Start Command Classifier"},{"panel":3,"sheet":11,"module":"CT1242A","tm":"TM-18","ch":3,"tag":"","desc":"Stop Command Motor"},{"panel":3,"sheet":11,"module":"CT1242A","tm":"TM-18","ch":4,"tag":"","desc":"Pneumatic Valve Forward Command"},{"panel":3,"sheet":11,"module":"CT1242A","tm":"TM-18","ch":5,"tag":"","desc":"Pneumatic Valve Reverse Command"},{"panel":3,"sheet":11,"module":"CT1242A","tm":"TM-18","ch":6,"tag":"","desc":"Main Bag Filter Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":0,"tag":"","desc":"Bag Filter Exust fan Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":1,"tag":"","desc":"Bag Filter Exust fan Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":2,"tag":"","desc":"Bag Filter Exust fan Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":3,"tag":"","desc":"Bag Filter Exust fan Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":4,"tag":"","desc":"Ventilator Fan Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":5,"tag":"","desc":"Ventilator Motor Cooling Fan Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":6,"tag":"","desc":"Ventilator Motor Cooling Fan Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":7,"tag":"","desc":"Screw Conveyor Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":8,"tag":"","desc":"Screw Conveyor Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":9,"tag":"","desc":"Screw Conveyor Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":10,"tag":"","desc":"Screw Conveyor Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":11,"tag":"","desc":"Bag Filter Rotary Valve Command"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":12,"tag":"","desc":"Forward Command 11a-13 Electic Motrized"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":13,"tag":"","desc":"Reverse Command Valve"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":14,"tag":"","desc":"Electic Butterfly valve Command 11a-14"},{"panel":4,"sheet":10,"module":"CT1242A","tm":"TM-23","ch":15,"tag":"","desc":"Bag Filter Rotary Valve Command 11a-15"},{"panel":4,"sheet":11,"module":"CT1242A","tm":"TM-23","ch":0,"tag":"","desc":"Bag Filter Fan Command 11a-16"},{"panel":4,"sheet":11,"module":"CT1242A","tm":"TM-23","ch":1,"tag":"","desc":"Forward Command 11b.02-1 Electrical Shut"},{"panel":4,"sheet":11,"module":"CT1242A","tm":"TM-23","ch":2,"tag":"","desc":"Reverse Command Off Valve"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":0,"tag":"","desc":"Forward Command 11b.02-2 Electrical Shut"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":1,"tag":"","desc":"Reverse Command Off Valve"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":2,"tag":"","desc":"Forward Command 11b.02-3 Electrical Shut"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":3,"tag":"","desc":"Reverse Command Off Valve"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":4,"tag":"","desc":"Forward Command 11b.02-4 Electrical Shut"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":5,"tag":"","desc":"Reverse Command Off Valve"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":6,"tag":"","desc":"Forward Command 11b.02-5 Electrical Shut"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":7,"tag":"","desc":"Reverse Command Off Valve"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":8,"tag":"","desc":"Forward Command 11b.01-1 Screw"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":9,"tag":"","desc":"Reverse Command Conveyor"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":10,"tag":"","desc":"Sampler Command"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":11,"tag":"","desc":"Borner Binary Interface"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":12,"tag":"","desc":"Borner Automatic Remote"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":13,"tag":"","desc":"Borner start/ Stop 11b-06-1 Roter scale klin"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":14,"tag":"","desc":"Borner Acknowledge"},{"panel":5,"sheet":10,"module":"CT1242A","tm":"TM-28","ch":15,"tag":"","desc":"Borner Empty Down"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":0,"tag":"","desc":"Pipe Roto Scale klin Borner Relase Aeration"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":1,"tag":"","desc":"Down Pipe Roto Scale klin"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":2,"tag":"","desc":"Borner permanent Aeration Down"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":3,"tag":"","desc":"Roto Scale klin Borner Relase Aeration Silo 11b-06-1 Roter"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":4,"tag":"","desc":"Borner parmanent Aeration Silo scale klin"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":5,"tag":"","desc":"Borner inert Gas Silo"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":6,"tag":"","desc":"Borner reverse /spare"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":7,"tag":"","desc":"Borner Start Relase"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":8,"tag":"","desc":"Binary Interface"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":9,"tag":"","desc":"Automatic Remote"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":10,"tag":"","desc":"Start/ Stop"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":11,"tag":"","desc":"Acknowledge 11b-06-2 Roter"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":12,"tag":"","desc":"Empty Down Pipe Scale"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":13,"tag":"","desc":"Relase Aeration Down Pipe"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":14,"tag":"","desc":"Permanent Aeration Down"},{"panel":5,"sheet":11,"module":"CT1242A","tm":"TM-28","ch":15,"tag":"","desc":"Relase Aeration Silo"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":0,"tag":"","desc":"parmanent Aeration Silo"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":1,"tag":"","desc":"inert Gas Silo 11b-06-2 Roter"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":2,"tag":"","desc":"(m41) Reverse /spare Scale"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":3,"tag":"","desc":"Start Relase"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":4,"tag":"","desc":"Roots Blower Command"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":5,"tag":"","desc":"Roots Blower Motor Cooling Fan Command"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":6,"tag":"","desc":"Roots Blower Command"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":7,"tag":"","desc":"Roots Blower Motor Cooling Fan Command"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":8,"tag":"","desc":"Roots Blower Command"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":9,"tag":"","desc":"Roots Blower Motor Cooling Fan Command"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":10,"tag":"","desc":"Forward Command 11b.09-1 Electrical"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":11,"tag":"","desc":"Reverse Command Motorized Valve"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":12,"tag":"","desc":"Forward Command 11b.09-2 Electrical"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":13,"tag":"","desc":"Reverse Command Motorized Valve"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":14,"tag":"","desc":"Forward Command 11b.09-3 Electrical"},{"panel":6,"sheet":10,"module":"CT1242A","tm":"TM-33","ch":15,"tag":"","desc":"Reverse Command Motorized Valve"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":0,"tag":"","desc":"Forward Command 11b.09-4 Electrical"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":1,"tag":"","desc":"Reverse Command Motorized Valve"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":2,"tag":"","desc":"Forward Command 11b.09-5 Electrical"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":3,"tag":"","desc":"Reverse Command Motorized Valve"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":4,"tag":"","desc":"Bag Filter Rotary Valve Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":5,"tag":"","desc":"Bag Filter Fan Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":6,"tag":"","desc":"Belt conveyor Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":7,"tag":"","desc":"Belt conveyor Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":8,"tag":"","desc":"Belt conveyor Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":9,"tag":"","desc":"Bag Filter Rotary Valve Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":10,"tag":"","desc":"Bag Filter Fan Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":11,"tag":"","desc":"Metal Detector Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":12,"tag":"","desc":"Magnet Separator Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":13,"tag":"","desc":"Pneumatic Three way gate Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":14,"tag":"","desc":"Rotary Valve Command"},{"panel":6,"sheet":11,"module":"CT1242A","tm":"TM-33","ch":15,"tag":"","desc":"Rotary Valve Command"}]};</script>
+<script>
+(function(){
+  "use strict";
+  var HMI = window.HMI || { S:{}, set:function(){}, toggle:function(){}, onChange:function(){} };
+  function $(id){ return document.getElementById(id); }
+  function pad2(n){ return (n < 10 ? "0" : "") + n; }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  /* ================= TABS ================= */
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+  var pageEls = {};
+  Array.prototype.forEach.call(document.querySelectorAll(".page"), function(p){ pageEls[p.id] = p; });
+  function showPage(id){
+    Object.keys(pageEls).forEach(function(k){ pageEls[k].classList.toggle("on", k === id); });
+    tabs.forEach(function(t){ t.classList.toggle("on", t.getAttribute("data-page") === id); });
+  }
+  tabs.forEach(function(t){
+    t.addEventListener("click", function(){ showPage(t.getAttribute("data-page")); });
+  });
+
+  /* ================= SHARED SETPOINTS ================= */
+  var SP = { feeder:18.5, hgd:65, rad:40, bfd:72, fanRpm:990, clsRpm:180, kiln:11.5, pc:7.0, hyd:125 };
+  var spListeners = [];
+  function setSP(key, val){
+    if (SP[key] === val) return;
+    SP[key] = val;
+    spListeners.forEach(function(f){ try { f(key, val); } catch(e){} });
+  }
+
+  /* ================= MOTOR MASTER LIST ================= */
+  var MOTORS = [];
+  function addMotor(tag, name, type, amps, shared, run0){
+    var m = { tag:tag, name:name, type:type, amps:amps, shared:shared || null,
+      running: !!run0, secs: 0, hoursBase: 240 + (MOTORS.length * 137) % 3800,
+      pos: 0, target: null, cur: 0, spKey: null, spMin: 0, spMax: 100, spUnit: "", hzPer: 0 };
+    MOTORS.push(m);
+    return m;
+  }
+  /* DOL — 38 */
+  [
+    ["M55","Belt Conveyor 1",24,"M55",1],["M56","Belt Conveyor 2",24,"M56",1],
+    ["M57","Belt Conveyor 3",24,"M57",1],["M8","Gear Box Lube Oil Pump",18,"M8",1],
+    ["M11","Hydraulic Pump",55,"M11",1],["M12","Hydraulic Heater",42,"M12",0],
+    ["M13","Mill Cooling Fan",30,"M13",1],["M45","Main Motor Cooling Fan",28,null,1],
+    ["M17","Exhaust Fan 1",36,null,1],["M18","Exhaust Fan 2",36,null,1],
+    ["M19","Exhaust Fan 3",36,null,1],["M20","Exhaust Fan 4",36,null,1],
+    ["M32","Bag Filter Fan Aux 1",15,null,1],["M54","Bag Filter Fan Aux 2",15,null,1],
+    ["M43","Vent Fan",12,null,0],["M47","Vent Fan",12,null,1],
+    ["M39","Sampler",6,null,0],
+    ["RSC","Reject Screw Conveyor",11,null,1],["PSC","Product Screw Conveyor",15,"SCREW",1],
+    ["11a.01-1","Vibrator Motor 1",4,null,0],["11a.01-2","Vibrator Motor 2",4,null,0],
+    ["SCM","Scraper Motor",11,null,1],["FRV","Feeding Rotary Valve",5.5,null,1],
+    ["SAF","Seal Air Fan",45,"SEAL",1],
+    ["11B.09M-1","Roots Blower 1",37,null,1],["11B.09M-2","Roots Blower 2",37,null,1],
+    ["11B.09M-3","Roots Blower 3",37,null,1],["11B.12","Dedusting Bag Filter Fan",48,null,1]
+  ].forEach(function(r){ addMotor(r[0], r[1], "DOL", r[2], r[3], r[4]); });
+  for (var rvi = 1; rvi <= 10; rvi++)
+    addMotor("RV-" + rvi, "Rotary Valve " + rvi + " (Main Bag Filter)", "DOL", 5.5, null, 1);
+  /* VFD — 3 */
+  var m14 = addMotor("M14","Classifier Motor","VFD",96,"M14",1);
+  m14.spKey = "clsRpm"; m14.spMin = 0; m14.spMax = 300; m14.spUnit = "rpm"; m14.hzPer = 1/6;
+  var m59 = addMotor("M59","Bag Filter Fan","VFD",185,"M59",1);
+  m59.spKey = "fanRpm"; m59.spMin = 0; m59.spMax = 1480; m59.spUnit = "rpm"; m59.hzPer = 50/1480;
+  var m3 = addMotor("M3","Weighing Feeder","VFD",15,"M3",1);
+  m3.spKey = "feeder"; m3.spMin = 0; m3.spMax = 30; m3.spUnit = "t/h"; m3.hzPer = 50/30;
+  /* REV — 20 */
+  function addRev(tag, name, pos, spKey){
+    var m = addMotor(tag, name, "REV", 0, null, 0);
+    m.pos = pos; m.spKey = spKey || null;
+    return m;
+  }
+  addRev("M15","Pneumatic Valve",100);
+  var m62 = addRev("M62","Pneumatic Three-Way Gate",100); m62.shared = "M62";
+  addRev("M29","Motorized Valve",0);
+  addRev("M30","Motorized Valve",62);
+  addRev("M33","Shut-Off Valve",100);
+  addRev("M48","Butterfly Valve 1",45);
+  addRev("M49","Butterfly Valve 2",45);
+  addRev("M50","Butterfly Valve 3",30);
+  addRev("M51","Butterfly Valve 4",30);
+  addRev("M52","Butterfly Valve 5",0);
+  [100,100,0,100,0,100,100].forEach(function(p, i){
+    addRev("GV-" + (i + 1), "Gate Valve " + (i + 1) + " (Main Bag Filter)", p);
+  });
+  addRev("HGD","Hot Gas Damper",SP.hgd,"hgd");
+  addRev("RAD","Recirculation Air Damper",SP.rad,"rad");
+  addRev("BFD","Bag Filter Fan Damper",SP.bfd,"bfd");
+
+  function isRunning(m){ return m.shared ? !!HMI.S[m.shared] : m.running; }
+  function setRunning(m, v){
+    if (m.shared) HMI.set(m.shared, v);
+    else { m.running = !!v; refreshDynamics(); fpUpdate(); }
+  }
+  function revState(m){
+    if (m.target !== null) return m.target > m.pos ? "OPENING" : "CLOSING";
+    if (m.pos >= 100) return "OPEN";
+    if (m.pos <= 0) return "CLOSED";
+    return "PART OPEN";
+  }
+  function findMotor(tag){
+    for (var i = 0; i < MOTORS.length; i++) if (MOTORS[i].tag === tag) return MOTORS[i];
+    return null;
+  }
+
+  /* ================= MOTOR GRID ================= */
+  var filter = "ALL", page = 1, selected = MOTORS[0];
+  var grid = $("motorGrid"), cardRefs = {};
+  function filtered(){
+    return MOTORS.filter(function(m){ return filter === "ALL" || m.type === filter; });
+  }
+  function renderGrid(){
+    var list = filtered();
+    var pages = Math.max(1, Math.ceil(list.length / 10));
+    if (page > pages) page = pages;
+    if (page < 1) page = 1;
+    var slice = list.slice((page - 1) * 10, page * 10);
+    cardRefs = {};
+    grid.innerHTML = "";
+    slice.forEach(function(m){
+      var card = document.createElement("div");
+      card.className = "mcard" + (m === selected ? " sel" : "");
+      card.innerHTML =
+        '<div class="mc-top"><span class="mc-tag">' + esc(m.tag) + '</span>' +
+        '<span class="badge ' + m.type.toLowerCase() + '">' + m.type + '</span></div>' +
+        '<div class="mc-name">' + esc(m.name) + '</div>' +
+        '<div class="mc-bot"><span class="dot gr"></span><span class="mc-state"></span>' +
+        '<span class="mc-cur"></span></div>';
+      card.addEventListener("click", function(){
+        selected = m;
+        Array.prototype.forEach.call(grid.children, function(c){ c.classList.remove("sel"); });
+        card.classList.add("sel");
+        buildFaceplate();
+        var fp = $("faceplate");
+        if (fp && fp.scrollIntoView) fp.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      });
+      grid.appendChild(card);
+      cardRefs[m.tag] = {
+        dot: card.querySelector(".dot"),
+        state: card.querySelector(".mc-state"),
+        cur: card.querySelector(".mc-cur")
+      };
+    });
+    $("pgInfo").textContent = "Page " + page + " of " + pages;
+    $("pgPrev").disabled = page <= 1;
+    $("pgNext").disabled = page >= pages;
+    refreshDynamics();
+  }
+  function refreshDynamics(){
+    Object.keys(cardRefs).forEach(function(tag){
+      var m = findMotor(tag), r = cardRefs[tag];
+      if (!m || !r) return;
+      if (m.type === "REV"){
+        var st = revState(m);
+        r.dot.className = "dot " + (m.pos >= 100 ? "g" : (m.pos <= 0 ? "r" : "y"));
+        r.state.textContent = st;
+        r.cur.textContent = Math.round(m.pos) + " %";
+      } else {
+        var run = isRunning(m);
+        r.dot.className = "dot " + (run ? "g" : "r");
+        r.state.textContent = run ? "RUNNING" : "STOPPED";
+        r.cur.textContent = run ? m.cur.toFixed(1) + " A" : "0.0 A";
+      }
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#motorChips .chip"), function(chip){
+    chip.addEventListener("click", function(){
+      Array.prototype.forEach.call(document.querySelectorAll("#motorChips .chip"), function(c){ c.classList.remove("on"); });
+      chip.classList.add("on");
+      filter = chip.getAttribute("data-f");
+      page = 1;
+      renderGrid();
+    });
+  });
+  $("pgPrev").addEventListener("click", function(){ if (page > 1){ page--; renderGrid(); } });
+  $("pgNext").addEventListener("click", function(){ page++; renderGrid(); });
+  $("motorCount").textContent = MOTORS.length + " devices · " +
+    MOTORS.filter(function(m){ return m.type === "DOL"; }).length + " DOL · " +
+    MOTORS.filter(function(m){ return m.type === "VFD"; }).length + " VFD · " +
+    MOTORS.filter(function(m){ return m.type === "REV"; }).length + " REV";
+
+  /* ================= FACEPLATE ================= */
+  var fpEl = $("faceplate"), FP = {};
+  function lampDot(on, color){
+    return '<span class="dot ' + (on ? (color || "g") : "gr") + '"></span>';
+  }
+  function buildFaceplate(){
+    var m = selected;
+    FP = { m: m };
+    var head =
+      '<div class="fp-head"><div><span class="fp-tag">' + esc(m.tag) + '</span>' +
+      '<span class="badge ' + m.type.toLowerCase() + '">' + m.type + '</span>' +
+      '<div class="fp-name">' + esc(m.name) + '</div></div>' +
+      '<div class="fp-state" id="fpState"></div></div>';
+    var lamps =
+      '<div class="lamp-row">' +
+      '<span class="lampitem"><span id="fpReady"></span>READY</span>' +
+      '<span class="lampitem"><span id="fpRemote"></span>REMOTE</span>' +
+      (m.type === "REV"
+        ? '<span class="lampitem"><span id="fpOpenLim"></span>OPEN LIMIT</span>' +
+          '<span class="lampitem"><span id="fpCloseLim"></span>CLOSE LIMIT</span>'
+        : '<span class="lampitem"><span id="fpRunLamp"></span>RUN</span>' +
+          '<span class="lampitem"><span id="fpFault"></span>FAULT</span>') +
+      '</div>';
+    var body = "";
+    if (m.type === "DOL"){
+      body =
+        '<div class="fp-btns">' +
+        '<button class="btn btn-start btn-big" id="fpStart" type="button">START</button>' +
+        '<button class="btn btn-stop btn-big" id="fpStop" type="button">STOP</button></div>' +
+        '<div class="ro-row">' +
+        '<div class="ro-box"><label>CURRENT</label><span class="ro" id="fpCur">0.0 A</span></div>' +
+        '<div class="ro-box"><label>RUNNING HOURS</label><span class="ro" id="fpHrs">0:00:00</span></div>' +
+        '</div>';
+    } else if (m.type === "VFD"){
+      body =
+        '<div class="fp-btns">' +
+        '<button class="btn btn-start btn-big" id="fpStart" type="button">START</button>' +
+        '<button class="btn btn-stop btn-big" id="fpStop" type="button">STOP</button></div>' +
+        '<div class="sp-block"><div class="sp-lab"><span>SPEED SETPOINT</span>' +
+        '<span class="ro" id="fpSpVal"></span></div>' +
+        '<input type="range" id="fpSlider" min="' + m.spMin + '" max="' + m.spMax + '" step="' +
+          (m.spUnit === "t/h" ? "0.1" : "1") + '" value="' + SP[m.spKey] + '" /></div>' +
+        '<div class="ro-row">' +
+        '<div class="ro-box"><label>OUTPUT FREQ</label><span class="ro" id="fpHz">0.0 Hz</span></div>' +
+        '<div class="ro-box"><label>OUTPUT ' + (m.spUnit === "t/h" ? "RATE" : "SPEED") + '</label><span class="ro" id="fpOut"></span></div>' +
+        '<div class="ro-box"><label>CURRENT</label><span class="ro" id="fpCur">0.0 A</span></div>' +
+        '<div class="ro-box"><label>RUNNING HOURS</label><span class="ro" id="fpHrs">0:00:00</span></div>' +
+        '</div>';
+    } else {
+      body =
+        '<div class="fp-btns">' +
+        '<button class="btn btn-start btn-big" id="fpFwd" type="button">FORWARD / OPEN</button>' +
+        '<button class="btn btn-hold btn-big" id="fpHold" type="button">STOP</button>' +
+        '<button class="btn btn-stop btn-big" id="fpRev" type="button">REVERSE / CLOSE</button></div>' +
+        '<div class="sp-block"><div class="sp-lab"><span>POSITION</span>' +
+        '<span class="ro" id="fpPosVal"></span></div>' +
+        '<div class="posbar"><div class="posfill" id="fpPosFill" style="width:0%"></div></div></div>';
+    }
+    fpEl.innerHTML = head + lamps + body;
+    FP.state = $("fpState"); FP.ready = $("fpReady"); FP.remote = $("fpRemote");
+    FP.runLamp = $("fpRunLamp"); FP.fault = $("fpFault");
+    FP.openLim = $("fpOpenLim"); FP.closeLim = $("fpCloseLim");
+    FP.cur = $("fpCur"); FP.hrs = $("fpHrs");
+    if (m.type !== "REV"){
+      $("fpStart").addEventListener("click", function(){ setRunning(m, true); });
+      $("fpStop").addEventListener("click", function(){ setRunning(m, false); });
+    }
+    if (m.type === "VFD"){
+      FP.spVal = $("fpSpVal"); FP.hz = $("fpHz"); FP.out = $("fpOut");
+      FP.slider = $("fpSlider");
+      FP.slider.addEventListener("input", function(){ setSP(m.spKey, parseFloat(FP.slider.value)); });
+    }
+    if (m.type === "REV"){
+      FP.posVal = $("fpPosVal"); FP.posFill = $("fpPosFill");
+      $("fpFwd").addEventListener("click", function(){ m.target = 100; fpUpdate(); refreshDynamics(); });
+      $("fpRev").addEventListener("click", function(){ m.target = 0; fpUpdate(); refreshDynamics(); });
+      $("fpHold").addEventListener("click", function(){ m.target = null; fpUpdate(); refreshDynamics(); });
+    }
+    fpUpdate();
+  }
+  function fmtHrs(m){
+    var total = Math.floor(m.hoursBase * 3600 + m.secs);
+    var h = Math.floor(total / 3600), mi = Math.floor((total % 3600) / 60), s = total % 60;
+    return h + ":" + pad2(mi) + ":" + pad2(s);
+  }
+  function fpUpdate(){
+    var m = FP.m;
+    if (!m || selected !== m) return;
+    FP.ready.innerHTML = lampDot(true);
+    FP.remote.innerHTML = lampDot(true);
+    if (m.type === "REV"){
+      var st = revState(m);
+      FP.state.innerHTML = '<span class="dot ' + (m.pos >= 100 ? "g" : (m.pos <= 0 ? "r" : "y")) + '"></span>' + st;
+      FP.openLim.innerHTML = lampDot(m.pos >= 100);
+      FP.closeLim.innerHTML = lampDot(m.pos <= 0, "r");
+      if (FP.posVal) FP.posVal.textContent = Math.round(m.pos) + " %";
+      if (FP.posFill) FP.posFill.style.width = m.pos + "%";
+    } else {
+      var run = isRunning(m);
+      FP.state.innerHTML = '<span class="dot ' + (run ? "g" : "r") + '"></span>' + (run ? "RUNNING" : "STOPPED");
+      if (FP.runLamp) FP.runLamp.innerHTML = lampDot(run);
+      if (FP.fault) FP.fault.innerHTML = lampDot(false, "y");
+      if (FP.cur) FP.cur.textContent = (run ? m.cur : 0).toFixed(1) + " A";
+      if (FP.hrs) FP.hrs.textContent = fmtHrs(m);
+      if (m.type === "VFD"){
+        var sp = SP[m.spKey], hz = sp * m.hzPer;
+        if (FP.spVal) FP.spVal.textContent = (m.spUnit === "t/h" ? sp.toFixed(1) : Math.round(sp)) + " " + m.spUnit;
+        if (FP.slider && document.activeElement !== FP.slider) FP.slider.value = sp;
+        if (FP.hz) FP.hz.textContent = (run ? hz * (0.98 + Math.random() * 0.04) : 0).toFixed(1) + " Hz";
+        if (FP.out) FP.out.textContent = run
+          ? (m.spUnit === "t/h" ? sp.toFixed(1) + " t/h" : Math.round(sp * (0.98 + Math.random() * 0.04)) + " rpm")
+          : (m.spUnit === "t/h" ? "0.0 t/h" : "0 rpm");
+      }
+    }
+  }
+
+  /* overview <-> faceplate shared state */
+  HMI.onChange(function(id){
+    if (id === "M62" || id === "ALL"){
+      var g = findMotor("M62");
+      if (g){ g.pos = HMI.S["M62"] ? 100 : 0; g.target = null; }
+    }
+    refreshDynamics();
+    fpUpdate();
+  });
+
+  /* damper setpoints <-> REV positions */
+  spListeners.push(function(key, val){
+    var tag = { hgd: "HGD", rad: "RAD", bfd: "BFD" }[key];
+    if (tag){
+      var m = findMotor(tag);
+      if (m){ m.pos = val; m.target = null; }
+    }
+    syncSpInputs(key);
+    fpUpdate();
+    refreshDynamics();
+  });
+
+  /* ================= AO SETPOINTS PAGE ================= */
+  var SP_DEFS = [
+    { key:"feeder", name:"Feeder Raw Set Point",               ch:"AO · P1 S13 CH00", unit:"t/h", min:0, max:30,   step:0.1 },
+    { key:"hgd",    name:"Hot Gas Damper Setpoint",            ch:"AO · P1 S13 CH01", unit:"%",   min:0, max:100,  step:1 },
+    { key:"rad",    name:"Recirculation Air Damper Set Point", ch:"AO · P1 S13 CH02", unit:"%",   min:0, max:100,  step:1 },
+    { key:"bfd",    name:"Bag Filter Fan Damper Set Point",    ch:"AO · P1 S13 CH03", unit:"%",   min:0, max:100,  step:1 },
+    { key:"fanRpm", name:"Bag Filter Fan RPM Set Point",       ch:"AO · P1 S13 CH04", unit:"rpm", min:0, max:1480, step:5 },
+    { key:"clsRpm", name:"Classifier RPM Set Point",           ch:"AO · P1 S13 CH05", unit:"rpm", min:0, max:300,  step:1 },
+    { key:"kiln",   name:"Kiln Flow Rate Set Point",           ch:"AO · P1 S13 CH06", unit:"t/h", min:0, max:20,   step:0.1 },
+    { key:"pc",     name:"PC Flow Rate Set Point",             ch:"AO · P1 S13 CH07", unit:"t/h", min:0, max:15,   step:0.1 },
+    { key:"hyd",    name:"Hydraulic Oil Pressure Set Point",   ch:"AO · P1 S13 CH08", unit:"bar", min:0, max:160,  step:1 }
+  ];
+  var spInputs = {};
+  (function buildSetpoints(){
+    var host = $("spList");
+    SP_DEFS.forEach(function(d){
+      var row = document.createElement("div");
+      row.className = "sp-row";
+      row.innerHTML =
+        '<div class="sp-meta"><div class="sp-name">' + esc(d.name) + '</div>' +
+        '<div class="sp-ch">' + esc(d.ch) + '</div></div>' +
+        '<input type="range" min="' + d.min + '" max="' + d.max + '" step="' + d.step + '" value="' + SP[d.key] + '" />' +
+        '<div class="sp-val"><input class="numin" type="number" min="' + d.min + '" max="' + d.max + '" step="' + d.step +
+        '" value="' + SP[d.key] + '" /><span class="sp-unit">' + esc(d.unit) + '</span></div>';
+      var slider = row.querySelector('input[type="range"]');
+      var num = row.querySelector('input[type="number"]');
+      slider.addEventListener("input", function(){ setSP(d.key, parseFloat(slider.value)); });
+      num.addEventListener("change", function(){
+        var v = parseFloat(num.value);
+        if (isNaN(v)) v = SP[d.key];
+        v = Math.max(d.min, Math.min(d.max, v));
+        setSP(d.key, v);
+        num.value = v;
+      });
+      spInputs[d.key] = { slider: slider, num: num, step: d.step };
+      host.appendChild(row);
+    });
+  })();
+  function syncSpInputs(key){
+    var rec = spInputs[key];
+    if (!rec) return;
+    var v = SP[key];
+    if (document.activeElement !== rec.slider) rec.slider.value = v;
+    if (document.activeElement !== rec.num) rec.num.value = rec.step < 1 ? v.toFixed(1) : Math.round(v);
+  }
+
+  /* ================= TEMPERATURES (84 AI points) ================= */
+  var BANDS = {
+    wind:    { lo: 70, hi: 110, H: 115, HH: 125 },
+    bearing: { lo: 45, hi: 75,  H: 82,  HH: 92 },
+    bag:     { lo: 60, hi: 95,  H: 105, HH: 115 },
+    process: { lo: 60, hi: 120, H: 130, HH: 145 },
+    tank:    { lo: 35, hi: 60,  H: 68,  HH: 78 }
+  };
+  var TEMPS = [];
+  function addTemp(tag, desc, loc, band){
+    var b = BANDS[band];
+    TEMPS.push({ tag: tag, desc: desc, loc: loc, band: b,
+      val: (b.lo + b.hi) / 2 + (Math.random() - 0.5) * (b.hi - b.lo) * 0.5,
+      H: b.H, HH: b.HH, cell: null, tr: null });
+  }
+  [
+    ["CT015","Primary Air Temp. Mill Inlet","P1 S7 CH13","process"],
+    ["HAT","Hot Air Temperature","P1 S7 CH14","process"],
+    ["CT001","Classifier Air-Power Mixture Temp","P1 S7 CH15","process"],
+    ["CT002","Classifier Air-Power Mixture Temp","P1 S8 CH00","process"],
+    ["CT003","Classifier Air-Power Mixture Temp","P1 S8 CH01","process"],
+    ["CT010","Main Motor Winding Temperature","P1 S8 CH02","wind"],
+    ["CT011","Main Motor Winding Temperature","P1 S8 CH03","wind"],
+    ["CT012","Main Motor Winding Temperature","P1 S8 CH04","wind"],
+    ["CT013","Main Motor Couple End Bearing Temperature","P1 S8 CH05","bearing"],
+    ["CT014","Main Motor Back End Bearing Temperature","P1 S8 CH06","bearing"],
+    ["CT017","Mill Roller Temperature","P1 S8 CH07","process"],
+    ["CT018","Mill Roller Temperature","P1 S8 CH08","process"],
+    ["CT019","Mill Roller Temperature","P1 S8 CH09","process"],
+    ["CT0109","Mill Thrust Bearing Temperature","P1 S8 CH10","bearing"],
+    ["CT0110","Mill Thrust Bearing Temperature","P1 S8 CH11","bearing"],
+    ["CT0111","Mill Thrust Bearing Temperature","P1 S8 CH12","bearing"],
+    ["HTT1","Hydraulic Tank Temp","P1 S8 CH13","tank"],
+    ["HTT2","Hydraulic Tank Temp","P1 S8 CH14","tank"],
+    ["CT101","Gear Box Oil Tank Temperature","P1 S8 CH15","tank"],
+    ["CT102","Gear Box Oil Tank Temp","P1 S9 CH00","tank"],
+    ["CT103","Gear Box Oil Tank Temp","P1 S9 CH01","tank"],
+    ["RCBT","Raw Bin Temperature","P1 S9 CH02","tank"],
+    ["BFIT","Bag Filter Inlet Temperature","P1 S9 CH05","bag"],
+    ["BFOT","Bag Filter Outlet Temp","P1 S9 CH06","bag"]
+  ].forEach(function(r){ addTemp(r[0], r[1], r[2], r[3]); });
+  var i;
+  for (i = 1; i <= 10; i++)
+    addTemp("BFCT" + i, "Bag Filter Cone Temp " + i, i <= 9 ? "P1 S9 CH" + pad2(6 + i) : "P1 S10 CH00", "bag");
+  for (i = 1; i <= 10; i++)
+    addTemp("BFHT" + i, "Bag Hopper Temp " + i, "P1 S10 CH" + pad2(i), "bag");
+  for (i = 1; i <= 28; i++){
+    var loc;
+    if (i <= 5) loc = "P1 S10 CH" + pad2(10 + i);
+    else if (i <= 14) loc = "P1 S11 CH" + pad2(i - 6);
+    else if (i <= 21) loc = "P1 S11 CH" + pad2(i - 6);
+    else loc = "P1 S12 CH" + pad2(i - 22);
+    addTemp("BFACT" + i, "Bag Air Chamber Temp " + (i <= 14 ? "East " : "West ") + i, loc, "bag");
+  }
+  [
+    ["FCBKCT","Fine Bin Kiln Cone Temp","P1 S12 CH07","bag"],
+    ["FCBKHT","Fine Bin Kiln Hopper Temp","P1 S12 CH08","bag"],
+    ["FCBPCCT","Fine Bin PC Cone Temperature","P1 S12 CH11","bag"],
+    ["FCBPCHT","Fine Bin PC Hopper Temp","P1 S12 CH12","bag"],
+    ["BFMWTU","Bag Filter Fan Motor Winding Temperature U","P2 S8 CH07","wind"],
+    ["BFMWTV","Bag Filter Fan Motor Winding Temperature V","P2 S8 CH08","wind"],
+    ["BFMWTW","Bag Filter Fan Motor Winding Temperature W","P2 S8 CH09","wind"],
+    ["BFMCET","Bag Filter Fan Motor Couple End Bearing Temp","P2 S8 CH10","bearing"],
+    ["CT020","Classifier Gear Box Temperature","P2 S8 CH12","tank"],
+    ["BFFCET","Bag Filter Fan Couple End Bearing Temp","P2 S8 CH13","bearing"],
+    ["BFFBET","Bag Filter Fan Back End Bearing Temp","P2 S8 CH14","bearing"],
+    ["MRCT","Mill Reject Chamber Temperature","P2 S8 CH15","process"]
+  ].forEach(function(r){ addTemp(r[0], r[1], r[2], r[3]); });
+
+  (function buildTempTable(){
+    var tb = $("tempBody");
+    var html = "";
+    TEMPS.forEach(function(t, idx){
+      html += '<tr><td class="mono">' + esc(t.tag) + '</td><td>' + esc(t.desc) + '</td>' +
+        '<td class="mono col-opt">' + esc(t.loc) + '</td>' +
+        '<td class="tval" data-tv="' + idx + '">--</td>' +
+        '<td><input class="numin sm" type="number" data-th="' + idx + '" value="' + t.H + '" /></td>' +
+        '<td><input class="numin sm" type="number" data-thh="' + idx + '" value="' + t.HH + '" /></td></tr>';
+    });
+    tb.innerHTML = html;
+    Array.prototype.forEach.call(tb.querySelectorAll("tr"), function(tr, idx){
+      TEMPS[idx].tr = tr;
+      TEMPS[idx].cell = tr.querySelector("[data-tv]");
+    });
+    Array.prototype.forEach.call(tb.querySelectorAll("[data-th]"), function(inp){
+      inp.addEventListener("change", function(){
+        var t = TEMPS[parseInt(inp.getAttribute("data-th"), 10)];
+        var v = parseFloat(inp.value);
+        if (!isNaN(v)) t.H = v;
+        tempRowClass(t);
+      });
+    });
+    Array.prototype.forEach.call(tb.querySelectorAll("[data-thh]"), function(inp){
+      inp.addEventListener("change", function(){
+        var t = TEMPS[parseInt(inp.getAttribute("data-thh"), 10)];
+        var v = parseFloat(inp.value);
+        if (!isNaN(v)) t.HH = v;
+        tempRowClass(t);
+      });
+    });
+    $("tempCount").textContent = TEMPS.length + " temperature points";
+  })();
+  function tempRowClass(t){
+    if (!t.tr) return;
+    t.tr.className = t.val > t.HH ? "alarm-hh" : (t.val > t.H ? "alarm-h" : "");
+  }
+  function tickTemps(){
+    TEMPS.forEach(function(t){
+      var b = t.band, center = (b.lo + b.hi) / 2;
+      t.val += (Math.random() - 0.5) * 2.0 + (center - t.val) * 0.02;
+      t.val = Math.max(b.lo - 2, Math.min(b.hi + 2, t.val));
+      if (t.cell) t.cell.textContent = t.val.toFixed(1);
+      tempRowClass(t);
+    });
+  }
+
+  /* ================= IO TABLES ================= */
+  function buildIO(kind, rows){
+    var tb = $("tb-" + kind), rc = $("rc-" + kind), q = $("q-" + kind);
+    var html = "";
+    rows.forEach(function(r){
+      html += '<tr><td class="mono">P' + r.panel + '</td><td class="mono">S' + r.sheet + '</td>' +
+        '<td class="mono col-opt">' + esc(r.module) + '</td><td class="mono col-opt">' + esc(r.tm) + '</td>' +
+        '<td class="mono">CH' + pad2(r.ch) + '</td><td class="mono">' + esc(r.tag || "—") + '</td>' +
+        '<td>' + esc(r.desc) + '</td></tr>';
+    });
+    tb.innerHTML = html;
+    function setCount(shown){
+      rc.textContent = rows.length + " points" + (shown !== rows.length ? " · showing " + shown : "");
+    }
+    setCount(rows.length);
+    q.addEventListener("input", function(){
+      var needle = q.value.trim().toLowerCase(), shown = 0;
+      Array.prototype.forEach.call(tb.rows, function(tr){
+        var hit = !needle || tr.textContent.toLowerCase().indexOf(needle) >= 0;
+        tr.style.display = hit ? "" : "none";
+        if (hit) shown++;
+      });
+      setCount(shown);
+    });
+  }
+  if (typeof IO_DATA !== "undefined"){
+    buildIO("ai", IO_DATA.AI || []);
+    buildIO("ao", IO_DATA.AO || []);
+    buildIO("di", IO_DATA.DI || []);
+    buildIO("do", IO_DATA.DO || []);
+  }
+
+  /* ================= SIMULATION TICKS ================= */
+  /* 250 ms: REV travel + running hours + currents + faceplate */
+  setInterval(function(){
+    MOTORS.forEach(function(m){
+      if (m.type === "REV"){
+        if (m.target !== null && m.pos !== m.target){
+          var step = 2.5;
+          m.pos += m.target > m.pos ? step : -step;
+          if ((m.target > m.pos && m.pos > m.target) || (m.target < m.pos && m.pos < m.target)) m.pos = m.target;
+          m.pos = Math.max(0, Math.min(100, m.pos));
+          if (m.pos === m.target){
+            var done = m.target;
+            m.target = null;
+            if (m === findMotor("M62")) HMI.set("M62", done >= 100);
+            if (m.spKey) setSP(m.spKey, Math.round(m.pos));
+          }
+          if (selected === m) fpUpdate();
+          refreshDynamics();
+        }
+      } else if (isRunning(m)){
+        m.secs += 0.25;
+        var frac = 1;
+        if (m.type === "VFD") frac = 0.25 + 0.75 * (SP[m.spKey] / m.spMax || 0);
+        m.cur = m.amps * frac * (0.92 + Math.random() * 0.16);
+      } else {
+        m.cur = 0;
+      }
+    });
+    fpUpdate();
+  }, 250);
+  /* 1 s: card currents + temperatures */
+  setInterval(function(){
+    refreshDynamics();
+    tickTemps();
+  }, 1000);
+
+  /* init */
+  renderGrid();
+  buildFaceplate();
+  tickTemps();
+})();
+
+</script>
+</body>
+</html>
